@@ -16,8 +16,12 @@ export function loadSeedCatalog() {
   return vm.runInNewContext(`${src}\n;({ CATEGORIES, PRODUCTS, TESTIMONIALS })`);
 }
 
+// Fixed Super Admin login, so the same sign-in works on every computer that runs this project.
+// Anyone with these files can read it: change it under My account if the site goes online.
+const OWNER = { name: "Sagpat Admin", email: "admin@sagpat.com", password: "9864012185", role: "super_admin" };
+
 const STAFF = [
-  { name: "Sagpat Admin", email: "admin@sagpat.example", role: "super_admin" },
+  OWNER,
   { name: "Order Desk", email: "orders@sagpat.example", role: "order_manager" },
   { name: "Inventory Team", email: "products@sagpat.example", role: "product_manager" },
   { name: "Dispatch Team", email: "delivery@sagpat.example", role: "delivery_manager" },
@@ -65,7 +69,7 @@ export function seedIfEmpty() {
       "",
     ];
     for (const s of STAFF) {
-      const password = process.env.SEED_ADMIN_PASSWORD || randomBytes(9).toString("base64url");
+      const password = s.password || process.env.SEED_ADMIN_PASSWORD || randomBytes(9).toString("base64url");
       run("INSERT INTO admins (name, email, password_hash, role, created_at) VALUES (:name, :email, :hash, :role, :at)", {
         ...s, hash: hashPassword(password), at: now(),
       });
@@ -73,6 +77,21 @@ export function seedIfEmpty() {
     }
     writeFileSync(CREDENTIALS_FILE, lines.join("\n") + "\n");
     console.log(`\n  Created staff accounts. Logins saved to: data/staff-logins.local.txt\n`);
+  }
+
+  // Databases created before the fixed login existed: turn the old Super Admin into it (once).
+  if (!one("SELECT id FROM admins WHERE email = :email", { email: OWNER.email })) {
+    const old = one("SELECT id FROM admins WHERE email = :old", { old: "admin@sagpat.example" });
+    const params = { email: OWNER.email, hash: hashPassword(OWNER.password), role: OWNER.role };
+    if (old) {
+      run("UPDATE admins SET email = :email, password_hash = :hash, role = :role, active = 1 WHERE id = :id", { ...params, id: old.id });
+    } else {
+      run("INSERT INTO admins (name, email, password_hash, role, created_at) VALUES (:name, :email, :hash, :role, :at)",
+        { ...params, name: OWNER.name, at: now() });
+    }
+    console.log(`
+  Super Admin login: ${OWNER.email}
+`);
   }
 
   if (created) console.log(`  Loaded ${catalog.PRODUCTS.length} products into the database.`);
