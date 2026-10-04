@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sagpat (सगपात) | Fresh vegetables, fruit and dairy in Kathmandu</title>
+  <meta name="description" content="Fresh vegetables, fruit, dairy and herbs from Nepali farms, delivered across Kathmandu Valley.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="home">
+  <header id="site-header" class="site-header"></header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <div class="hero-copy">
+          <p class="welcome">सगपातमा स्वागतम</p>
+          <h1>Fresh Produce Delivered Daily</h1>
+          <p>Saag, tomatoes, Mustang apples, Juju Dhau and more, bought from farmers each morning and at your door by evening.</p>
+
+          <form class="search-bar" action="products.html" role="search">
+            <input type="search" name="q" placeholder="Search rayo saag, apples, dahi…" aria-label="Search products">
+            <button type="submit" class="btn btn-primary">Search</button>
+          </form>
+
+          <div class="hero-links">
+            <a href="products.html" class="btn btn-primary btn-lg">Shopping गर्नुहोस्</a>
+            <a href="about.html#delivery">How delivery works</a>
+          </div>
+        </div>
+      </div>
+      <span class="photo-note">Photo: Krish Dulal, CC BY-SA 3.0</span>
+    </section>
+    <div class="motif-border" aria-hidden="true"></div>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2><span class="ne-sub">के किन्ने?</span>Shop by category</h2>
+          <a href="products.html">All products</a>
+        </div>
+        <div class="cat-grid" id="category-grid"></div>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top: 0;">
+      <div class="container">
+        <div class="section-head">
+          <h2><span class="ne-sub">धेरै बिक्ने</span>Popular this week</h2>
+          <div class="slider-controls">
+            <button type="button" class="slider-btn prev" aria-label="Previous"><i data-icon="left"></i></button>
+            <button type="button" class="slider-btn next" aria-label="Next"><i data-icon="right"></i></button>
+          </div>
+        </div>
+        <div class="slider" id="featured-slider" aria-roledescription="carousel" aria-label="Popular products">
+          <div class="slider-viewport"><div class="slider-track"></div></div>
+          <div class="slider-dots" role="group" aria-label="Choose slide"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="promise">
+      <div class="container promise-grid">
+        <div class="promise-item">
+          <i data-icon="leaf"></i>
+          <div><h3>100% fresh, or your money back</h3>
+            <p>If something isn't fresh, tell the rider or call us within 24 hours and we'll replace it.</p></div>
+        </div>
+        <div class="promise-item">
+          <i data-icon="truck"></i>
+          <div><h3>Same-day delivery</h3>
+            <p>Order before 2 PM and it reaches you the same evening, anywhere in the valley.</p></div>
+        </div>
+        <div class="promise-item">
+          <i data-icon="shield"></i>
+          <div><h3>Verified sellers</h3>
+            <p>We visit every farm and dairy we buy from. You can see where each item comes from.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2><span class="ne-sub">ग्राहकहरू भन्छन्</span>What customers say</h2>
+        </div>
+        <div class="testimonials" id="testimonials"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/home.js"></script>
+</body>
+</html>

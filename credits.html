@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo credits | Sagpat (सगपात)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="credits">
+  <header id="site-header" class="site-header"></header>
+
+  <div class="page-head">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Photo credits</div>
+      <h1>Photo credits</h1>
+    </div>
+  </div>
+
+  <main class="section">
+    <div class="container">
+      <p class="muted" style="max-width: 640px; margin-bottom: 22px;">
+        The product photos on this site come from Wikimedia Commons and are used under the licences listed below.
+        Some have been resized. Thank you to the photographers.
+      </p>
+      <div class="credits-grid" id="credits"></div>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/credits.js"></script>
+  <script>
+    document.getElementById("credits").innerHTML = PHOTO_CREDITS.map((c) => `
+      <div class="panel credit">
+        <img src="${c.image}" alt="" loading="lazy">
+        <div>
+          <a href="${c.page}" target="_blank" rel="noopener">${escapeHtml(c.title)}</a><br>
+          by ${escapeHtml(c.author)}<br>
+          <span class="muted">${c.licenseUrl
+            ? `<a href="${c.licenseUrl}" target="_blank" rel="noopener">${escapeHtml(c.license)}</a>`
+            : escapeHtml(c.license)}</span>
+        </div>
+      </div>`).join("");
+  </script>
+</body>
+</html>

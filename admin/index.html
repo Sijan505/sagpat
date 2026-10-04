@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Staff sign in | Sagpat</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <main class="login-page">
+    <div class="login-card">
+      <div class="brand">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 18h24l-3 15a2 2 0 0 1-2 1.6H13a2 2 0 0 1-2-1.6Z"/><path d="M12 23h16M13 28h14"/>
+          <path d="M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z" fill="#E8752F" stroke="#E8752F"/><path d="M20 18c-1-4-3.5-6.5-8-7 .5 4 3 6.5 8 7Z"/>
+        </svg>
+        <div><strong>Sagpat</strong><small>Staff portal</small></div>
+      </div>
+      <h1>Sign in</h1>
+      <p class="muted">Use the email and password your manager gave you.</p>
+
+      <form id="login-form" novalidate>
+        <div class="form-error" id="error" role="alert" hidden></div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submit">Sign in</button>
+        <a href="/" class="muted" style="font-size: .85rem;">← Back to the shop</a>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const error = document.getElementById("error");
+    const submit = document.getElementById("submit");
+
+    // Already signed in? Go straight to the dashboard.
+    fetch("/api/admin/me").then((r) => { if (r.ok) location.replace("/admin/app.html"); });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      error.hidden = true;
+      if (!form.email.value || !form.password.value) {
+        error.textContent = "Enter your email and password.";
+        error.hidden = false;
+        return;
+      }
+      submit.disabled = true;
+      submit.textContent = "Signing in…";
+      try {
+        const res = await fetch("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: form.email.value, password: form.password.value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't sign in. Please try again.");
+        const next = new URLSearchParams(location.search).get("next") || "";
+        location.replace("/admin/app.html" + (next.startsWith("#/") ? next : ""));
+      } catch (err) {
+        error.textContent = err.message;
+        error.hidden = false;
+        form.password.value = "";
+        form.password.focus();
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Sign in";
+      }
+    });
+  </script>
+</body>
+</html>

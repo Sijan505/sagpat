@@ -1,0 +1,15 @@
+{
+  "name": "sagpat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sagpat (सगपात) - fresh produce e-commerce site for Nepal",
+  "scripts": {
+    "dev": "node --watch-path=server server/index.js",
+    "start": "node server/index.js",
+    "seed:demo": "node server/seed-demo.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "type": "module"
+}

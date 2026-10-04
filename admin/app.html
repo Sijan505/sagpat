@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Sagpat Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 18h24l-3 15a2 2 0 0 1-2 1.6H13a2 2 0 0 1-2-1.6Z"/><path d="M12 23h16M13 28h14"/>
+          <path d="M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z" fill="#E8752F" stroke="#E8752F"/><path d="M20 18c-1-4-3.5-6.5-8-7 .5 4 3 6.5 8 7Z"/>
+        </svg>
+        <div><strong>Sagpat</strong><small>Admin</small></div>
+      </div>
+      <nav class="side-nav" id="side-nav" aria-label="Admin"></nav>
+      <div class="side-user" id="side-user"></div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <button type="button" class="icon-btn" id="menu-btn" aria-label="Menu">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <strong>Sagpat Admin</strong>
+      </div>
+      <main class="page" id="view" tabindex="-1" aria-live="polite"></main>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" role="status"></div>
+  <script type="module" src="/admin/js/app.js"></script>
+</body>
+</html>

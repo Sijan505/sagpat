@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About, Delivery &amp; Contact | Sagpat (सगपात)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="about">
+  <header id="site-header" class="site-header"></header>
+
+  <div class="page-head">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">Home</a> / About</div>
+      <h1><span class="ne">हाम्रो बारेमा</span>About Sagpat</h1>
+    </div>
+  </div>
+
+  <main>
+    <section class="section">
+      <div class="container about-grid">
+        <div class="prose">
+          <p class="lead">सगपात नेपाली किसानको ताजा उत्पादन सिधै तपाईंको घरसम्म पुर्‍याउँछ।</p>
+          <p>The name comes from <em>saag-paat</em>, the greens and vegetables every Nepali kitchen starts the day with. We started Sagpat because buying good vegetables in the city meant an early trip to Kalimati, and most people don't have that time.</p>
+          <p>Every morning we buy from farmers and small dairies we know in Kavre, Dhading, Bhaktapur and Chitwan. Fruit comes from growers in Mustang and Syangja. Everything is sorted and packed at our store in Kalimati and goes out on scooters the same day.</p>
+          <p>Each product page tells you which district it comes from. If something isn't as fresh as it should be, tell the rider or call us and we'll replace it.</p>
+
+          <h2 style="font-size: 1.15rem; margin: 28px 0 4px;">What we promise</h2>
+          <ul class="contact-list">
+            <li><i data-icon="leaf"></i><div><strong>Fresh, or we replace it</strong><br><span class="muted">No forms, just call within 24 hours.</span></div></li>
+            <li><i data-icon="shield"></i><div><strong>Fair prices for farmers</strong><br><span class="muted">We buy direct and pay on time.</span></div></li>
+            <li><i data-icon="bag"></i><div><strong>Less plastic</strong><br><span class="muted">Paper bags and crates we collect on the next delivery.</span></div></li>
+          </ul>
+        </div>
+        <figure class="about-photo">
+          <img src="images/tomato-baskets.jpg" alt="Baskets of tomatoes at a market in Nepal" loading="lazy">
+          <figcaption>Tomato baskets at a local market. Photo: Krish Dulal, CC BY-SA 3.0</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section promise" id="delivery">
+      <div class="container">
+        <div class="section-head">
+          <h2><span class="ne-sub">डेलिभरी जानकारी</span>Delivery info</h2>
+        </div>
+        <div class="info-cards">
+          <div class="panel info-card">
+            <h3><i data-icon="truck"></i> Standard, रु 50</h3>
+            <ul>
+              <li>Arrives in 2–3 days</li>
+              <li>Free on orders of रु 500 or more</li>
+              <li>Pick a morning, afternoon or evening slot</li>
+            </ul>
+          </div>
+          <div class="panel info-card">
+            <h3><i data-icon="clock"></i> Express, रु 150</h3>
+            <ul>
+              <li>Same day if you order by 2 PM</li>
+              <li>After 2 PM it goes out next morning</li>
+              <li>Best for saag, milk and dahi</li>
+            </ul>
+          </div>
+          <div class="panel info-card">
+            <h3><i data-icon="pin"></i> Where we deliver</h3>
+            <ul>
+              <li>Kathmandu, Lalitpur and Bhaktapur</li>
+              <li>Standard delivery to Pokhara, Chitwan, Butwal and Biratnagar</li>
+              <li>Call us if your area isn't listed</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="contact">
+      <div class="container about-grid">
+        <div>
+          <div class="section-head"><h2><span class="ne-sub">सम्पर्क</span>Contact us</h2></div>
+          <p class="muted">Questions about an order? Farmer who wants to sell through us? Send a message or just call.</p>
+          <ul class="contact-list">
+            <li><i data-icon="pin"></i><div><strong>Store</strong><br><span class="muted">Kalimati, Kathmandu 44600</span></div></li>
+            <li><i data-icon="phone"></i><div><strong>Phone / Viber / WhatsApp</strong><br><span class="muted" id="contact-phone"></span></div></li>
+            <li><i data-icon="mail"></i><div><strong>Email</strong><br><span class="muted" id="contact-email"></span></div></li>
+            <li><i data-icon="clock"></i><div><strong>Hours</strong><br><span class="muted">Every day, 7 AM – 8 PM</span></div></li>
+          </ul>
+        </div>
+
+        <form class="panel" id="contact-form" style="padding: 24px;">
+          <div class="form-grid">
+            <div>
+              <label for="c-name">Name</label>
+              <input id="c-name" name="name" required>
+            </div>
+            <div>
+              <label for="c-phone">Phone</label>
+              <input id="c-phone" name="phone" type="tel" placeholder="98XXXXXXXX" required>
+            </div>
+            <div class="full">
+              <label for="c-topic">About</label>
+              <select id="c-topic" name="topic">
+                <option>An order</option>
+                <option>Delivery</option>
+                <option>I'm a farmer / seller</option>
+                <option>Something else</option>
+              </select>
+            </div>
+            <div class="full">
+              <label for="c-message">Message</label>
+              <textarea id="c-message" name="message" rows="5" required></textarea>
+            </div>
+            <div class="full">
+              <button type="submit" class="btn btn-primary">Send message</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    document.getElementById("contact-phone").textContent = SHOP.PHONE;
+    document.getElementById("contact-email").textContent = SHOP.EMAIL;
+    // Front-end only for now: connect this to your backend or a form service.
+    document.getElementById("contact-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      e.target.reset();
+      toast("Thanks! We'll get back to you soon.");
+    });
+  </script>
+</body>
+</html>

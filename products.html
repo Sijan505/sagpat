@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products | Sagpat (सगपात)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="products">
+  <header id="site-header" class="site-header"></header>
+
+  <div class="page-head">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Shop</div>
+      <h1><span class="ne">सबै उत्पादन</span>Shop fresh produce</h1>
+    </div>
+  </div>
+
+  <main class="section">
+    <div class="container shop-layout">
+      <!-- Sidebar filters -->
+      <aside class="filters" id="filters" aria-label="Product filters">
+        <div class="filters-head">
+          <h2>Filters</h2>
+          <button type="button" class="btn btn-ghost btn-sm" id="clear-filters">Clear all</button>
+        </div>
+
+        <div class="filter-group">
+          <h3>Category</h3>
+          <div id="cat-filters"></div>
+        </div>
+
+        <div class="filter-group">
+          <h3>Price (NPR)</h3>
+          <div class="range">
+            <div class="range-track"><div class="range-fill" id="range-fill"></div></div>
+            <input type="range" id="price-min" min="50" max="1000" step="10" value="50" aria-label="Minimum price">
+            <input type="range" id="price-max" min="50" max="1000" step="10" value="1000" aria-label="Maximum price">
+          </div>
+          <div class="range-values"><span id="price-min-label">रु 50</span><span id="price-max-label">रु 1,000</span></div>
+        </div>
+
+        <div class="filter-group">
+          <h3>Freshness</h3>
+          <label class="check"><input type="radio" name="fresh" value="0" checked> Any rating</label>
+          <label class="check"><input type="radio" name="fresh" value="4.5"> <span class="stars" style="--r:4.5"></span> 4.5 &amp; up</label>
+          <label class="check"><input type="radio" name="fresh" value="4"> <span class="stars" style="--r:4"></span> 4.0 &amp; up</label>
+        </div>
+
+        <div class="filter-group">
+          <h3>Availability</h3>
+          <label class="switch">In stock only
+            <input type="checkbox" id="in-stock"><span class="slider-ui"></span></label>
+          <label class="switch">Wishlist only
+            <input type="checkbox" id="wishlist-only"><span class="slider-ui"></span></label>
+        </div>
+      </aside>
+
+      <!-- Results -->
+      <section aria-label="Products">
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <i data-icon="search"></i>
+            <input type="search" id="search" placeholder="Search (e.g. saag, apple, दूध)" aria-label="Search products">
+          </div>
+          <div class="toolbar-right">
+            <button type="button" class="btn btn-outline btn-sm filter-toggle" id="filter-toggle" aria-controls="filters" aria-expanded="false"><i data-icon="sliders"></i> Filters</button>
+            <select id="sort" aria-label="Sort products">
+              <option value="popular">Most popular</option>
+              <option value="price-asc">Price: Low → High</option>
+              <option value="price-desc">Price: High → Low</option>
+              <option value="fresh">Freshness</option>
+              <option value="new">New arrivals</option>
+            </select>
+          </div>
+        </div>
+        <p class="result-count" id="result-count" aria-live="polite"></p>
+        <div class="product-grid" id="product-grid"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/shop.js"></script>
+</body>
+</html>

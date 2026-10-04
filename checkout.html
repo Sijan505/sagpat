@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout | Sagpat (सगपात)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="checkout">
+  <header id="site-header" class="site-header"></header>
+
+  <div class="page-head">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">Home</a> / <a href="cart.html">Cart</a> / Checkout</div>
+      <h1><span class="ne">चेकआउट</span>Checkout</h1>
+    </div>
+  </div>
+
+  <main class="section">
+    <div class="container">
+      <div id="checkout-empty" hidden>
+        <div class="panel empty-state">
+          <h2>Your cart is empty</h2>
+          <p>Add some fresh items before checking out.</p>
+          <a href="products.html" class="btn btn-primary">Browse products</a>
+        </div>
+      </div>
+
+      <div id="checkout-main">
+        <ol class="stepper" aria-label="Checkout steps">
+          <li data-step="1"><span class="num"><span>1</span></span><div><strong>Address</strong><small>ठेगाना</small></div></li>
+          <li data-step="2"><span class="num"><span>2</span></span><div><strong>Delivery</strong><small>डेलिभरी</small></div></li>
+          <li data-step="3"><span class="num"><span>3</span></span><div><strong>Payment</strong><small>भुक्तानी</small></div></li>
+          <li data-step="4"><span class="num"><span>4</span></span><div><strong>Review</strong><small>समीक्षा</small></div></li>
+        </ol>
+
+        <div class="cart-layout">
+          <form id="checkout-form" class="panel" novalidate>
+            <!-- Step 1: Shipping -->
+            <section class="step-panel" data-step="1">
+              <h2>Shipping address</h2>
+              <p class="muted">Where should we deliver your order?</p>
+              <div class="form-grid">
+                <div>
+                  <label for="name">Full Name <span class="ne">· पूरा नाम</span> <span class="req">*</span></label>
+                  <input id="name" name="name" autocomplete="name" required>
+                </div>
+                <div>
+                  <label for="phone">Phone Number <span class="ne">· फोन</span> <span class="req">*</span></label>
+                  <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98XXXXXXXX"
+                         pattern="9[678][0-9]{8}" maxlength="10" required
+                         title="10-digit Nepali mobile number starting with 96, 97 or 98">
+                  <p class="field-hint">Our rider will call this number.</p>
+                </div>
+                <div class="full">
+                  <label for="email">Email <span class="ne">· इमेल</span> <span class="muted">(optional, for your invoice)</span></label>
+                  <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com">
+                </div>
+                <div>
+                  <label for="district">District / City <span class="ne">· जिल्ला / शहर</span> <span class="req">*</span></label>
+                  <input id="district" name="district" list="districts" placeholder="e.g. Kathmandu" required>
+                  <datalist id="districts">
+                    <option value="Kathmandu"><option value="Lalitpur"><option value="Bhaktapur">
+                    <option value="Kavrepalanchok"><option value="Chitwan"><option value="Kaski (Pokhara)">
+                    <option value="Morang (Biratnagar)"><option value="Rupandehi (Butwal)"><option value="Sunsari (Dharan)">
+                  </datalist>
+                </div>
+                <div>
+                  <label for="landmark">Landmark / Area <span class="ne">· नजिकको चिनारी</span> <span class="req">*</span></label>
+                  <input id="landmark" name="landmark" placeholder="e.g. Near Jawalakhel Chowk" required>
+                </div>
+                <div class="full">
+                  <label for="address">Delivery Address <span class="ne">· टोल / सडक</span> <span class="req">*</span></label>
+                  <textarea id="address" name="address" rows="2" placeholder="Tole, street, house number" required></textarea>
+                </div>
+              </div>
+              <div class="step-actions">
+                <a href="cart.html" class="btn btn-ghost">← Back to cart</a>
+                <button type="button" class="btn btn-primary" data-next>Continue to delivery</button>
+              </div>
+            </section>
+
+            <!-- Step 2: Delivery -->
+            <section class="step-panel" data-step="2" hidden>
+              <h2>Delivery options</h2>
+              <p class="muted">Express is best for saag and dairy.</p>
+              <div class="option-list">
+                <label class="option">
+                  <input type="radio" name="delivery" value="standard" checked>
+                  <span class="opt-body">
+                    <span class="opt-title">Standard delivery</span>
+                    <span class="opt-desc" id="standard-desc">2–3 days</span>
+                  </span>
+                  <span class="opt-price" id="standard-price"></span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="delivery" value="express">
+                  <span class="opt-body">
+                    <span class="opt-title">Express delivery</span>
+                    <span class="opt-desc" id="express-desc">Same day</span>
+                  </span>
+                  <span class="opt-price" id="express-price"></span>
+                </label>
+              </div>
+              <div style="margin-top: 20px; max-width: 360px;">
+                <label for="slot">Time slot <span class="ne">· समय</span> <span class="req">*</span></label>
+                <select id="slot" name="slot" required></select>
+              </div>
+              <div style="margin-top: 16px;">
+                <label for="notes">Delivery notes <span class="muted">(optional)</span></label>
+                <textarea id="notes" name="notes" rows="2" placeholder="e.g. Call before arriving, leave with the guard"></textarea>
+              </div>
+              <div class="step-actions">
+                <button type="button" class="btn btn-ghost" data-back>← Back</button>
+                <button type="button" class="btn btn-primary" data-next>Continue to payment</button>
+              </div>
+            </section>
+
+            <!-- Step 3: Payment -->
+            <section class="step-panel" data-step="3" hidden>
+              <h2>Payment method</h2>
+              <p class="muted">How would you like to pay?</p>
+              <div class="option-list">
+                <label class="option">
+                  <input type="radio" name="payment" value="cod" checked>
+                  <span class="opt-body">
+                    <span class="opt-title">Cash on delivery</span>
+                    <span class="opt-desc">Pay cash or scan the rider's Fonepay QR at your door.</span>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="payment" value="bank">
+                  <span class="opt-body">
+                    <span class="opt-title">Bank transfer</span>
+                    <span class="opt-desc">Transfer the total and we'll dispatch once payment is confirmed.</span>
+                    <span class="option-extra" id="bank-details" hidden>
+                      <dl>
+                        <dt>Bank</dt><dd>[Your bank name]</dd>
+                        <dt>Account name</dt><dd>Sagpat Pvt. Ltd.</dd>
+                        <dt>Account no.</dt><dd>[0000 0000 0000 0000]</dd>
+                        <dt>Remarks</dt><dd>Your order ID (shown after confirming)</dd>
+                      </dl>
+                    </span>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="payment" value="khalti">
+                  <span class="opt-body">
+                    <span class="opt-title">Khalti</span>
+                    <span class="opt-desc">Coming soon. We'll send you a payment link for now.</span>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="payment" value="esewa">
+                  <span class="opt-body">
+                    <span class="opt-title">eSewa</span>
+                    <span class="opt-desc">Coming soon. We'll send you a payment link for now.</span>
+                  </span>
+                </label>
+              </div>
+              <p class="field-hint" id="online-note" hidden style="margin-top: 12px;">
+                Online payments aren't live yet. Your order will be placed as <strong>payment pending</strong>, and our team will send you a payment link.
+              </p>
+              <div class="step-actions">
+                <button type="button" class="btn btn-ghost" data-back>← Back</button>
+                <button type="button" class="btn btn-primary" data-next>Review order</button>
+              </div>
+            </section>
+
+            <!-- Step 4: Review -->
+            <section class="step-panel" data-step="4" hidden>
+              <h2>Review your order</h2>
+              <p class="muted">Check the details below, then confirm.</p>
+              <div id="review-content"></div>
+              <p class="form-error" id="order-error" role="alert" hidden style="margin-top:14px; padding:10px 12px; border-radius:8px; background:#fbe9e7; color:#b42318;"></p>
+              <div class="step-actions">
+                <button type="button" class="btn btn-ghost" data-back>← Back</button>
+                <button type="submit" class="btn btn-primary btn-lg" id="confirm-btn">Confirm order</button>
+              </div>
+            </section>
+          </form>
+
+          <aside class="panel summary" id="checkout-summary" aria-label="Order summary"></aside>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/checkout.js"></script>
+</body>
+</html>
