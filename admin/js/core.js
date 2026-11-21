@@ -29,6 +29,9 @@ export async function api(path, { method = "GET", body, raw } = {}) {
 }
 
 // ---------- Formatting ----------
+// Product photos are either files in images/ or full URLs (uploaded to Vercel Blob)
+export const imgSrc = (image) => (/^https?:\/\//.test(image || "") ? image : `/${image || ""}`);
+
 export function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }

@@ -2,13 +2,14 @@
 // and reports have something to show. Run with `npm run seed:demo`.
 // Every demo customer's phone starts with 980000, so they're easy to spot and delete.
 import { randomBytes } from "node:crypto";
-import { db, one, all, run, transaction, getSettings } from "./db.js";
+import { db, initDb, one, all, run, transaction, getSettings } from "./db.js";
 import { seedIfEmpty } from "./seed.js";
 import { calcTotals, PAYMENT_METHODS } from "./orders.js";
 
-seedIfEmpty();
+await initDb();
+await seedIfEmpty();
 
-if (one("SELECT COUNT(*) AS n FROM customers WHERE phone LIKE '980000%'").n) {
+if ((await one("SELECT COUNT(*) AS n FROM customers WHERE phone LIKE '980000%'")).n) {
   console.log("Demo orders are already loaded. Nothing to do.");
   process.exit(0);
 }
@@ -25,24 +26,28 @@ const PLACES = [
 ];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const s = getSettings();
-const products = all("SELECT id, ne, en, unit, price FROM products WHERE active = 1");
-const slots = Object.fromEntries(["standard", "express_today"].map((t) => [t, all("SELECT label FROM delivery_slots WHERE type = :t", { t }).map((x) => x.label)]));
+const s = await getSettings();
+const products = await all("SELECT id, ne, en, unit, price FROM products WHERE active = 1");
+const slots = {};
+for (const t of ["standard", "express_today"]) {
+  slots[t] = (await all("SELECT label FROM delivery_slots WHERE type = :t", { t })).map((x) => x.label);
+}
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-const customers = NAMES.map((name, i) => {
+const customers = [];
+for (const [i, name] of NAMES.entries()) {
   const [district, area, landmark] = pick(PLACES);
   const phone = `980000${String(1000 + i).slice(-4)}`;
   const created = new Date(Date.now() - (35 - i) * 86400000).toISOString();
-  const r = run(`INSERT INTO customers (name, phone, email, district, address, landmark, created_at)
+  const r = await run(`INSERT INTO customers (name, phone, email, district, address, landmark, created_at)
                  VALUES (:name, :phone, '', :district, :area, :landmark, :created)`, { name, phone, district, area, landmark, created });
-  return { id: Number(r.lastInsertRowid), name, phone, district, address: area, landmark };
-});
+  customers.push({ id: Number(r.lastInsertRowid), name, phone, district, address: area, landmark });
+}
 
 const FLOW = ["pending", "confirmed", "packed", "out_for_delivery", "delivered"];
 let count = 0;
 
-transaction(() => {
+await transaction(async () => {
   for (let daysAgo = 29; daysAgo >= 0; daysAgo--) {
     const perDay = 2 + Math.floor(Math.random() * 5) + (daysAgo % 7 === 1 ? 3 : 0); // Saturdays are busier
     for (let n = 0; n < perDay; n++) {
@@ -63,7 +68,7 @@ transaction(() => {
 
       const id = `SGP-${created.toISOString().slice(2, 10).replace(/-/g, "")}-${Array.from(randomBytes(4), (b) => alphabet[b % 32]).join("")}`;
       const paid = status === "delivered" || (payment !== "cod" && Math.random() < 0.8);
-      run(`INSERT INTO orders (id, access_key, customer_id, created_at, updated_at, status, ship_name, ship_phone, ship_email, ship_district,
+      await run(`INSERT INTO orders (id, access_key, customer_id, created_at, updated_at, status, ship_name, ship_phone, ship_email, ship_district,
              ship_address, ship_landmark, delivery_type, slot, delivery_date, expected_from, expected_to, notes, payment_method, payment_status,
              subtotal, delivery_fee, tax, total)
            VALUES (:id, :key, :cid, :at, :at, :status, :name, :phone, '', :district, :address, :landmark, :type, :slot, :dd, :dd, :dd, '',
@@ -73,16 +78,18 @@ transaction(() => {
         pstatus: paid ? "Paid" : PAYMENT_METHODS[payment].status, subtotal: totals.subtotal, fee: totals.delivery, tax: totals.tax, total: totals.total,
       });
       for (const { p, qty } of lines) {
-        run(`INSERT INTO order_items (order_id, product_id, ne, en, unit, price, qty) VALUES (:id, :pid, :ne, :en, :unit, :price, :qty)`,
+        await run(`INSERT INTO order_items (order_id, product_id, ne, en, unit, price, qty) VALUES (:id, :pid, :ne, :en, :unit, :price, :qty)`,
           { id, pid: p.id, ne: p.ne, en: p.en, unit: p.unit, price: p.price, qty });
       }
       const steps = status === "cancelled" ? ["pending", "cancelled"]
         : status === "failed" ? [...FLOW.slice(0, 4), "failed"] : FLOW.slice(0, FLOW.indexOf(status) + 1);
-      steps.forEach((st, i) => run(`INSERT INTO order_events (order_id, at, type, status, note, admin_name)
-        VALUES (:id, :at, 'status', :st, :note, :by)`, {
-        id, at: new Date(created.getTime() + i * 2 * 3600000).toISOString(), st,
-        note: i === 0 ? "Order placed" : "", by: i === 0 ? "" : pick(["Order Desk", "Dispatch Team"]),
-      }));
+      for (const [i, st] of steps.entries()) {
+        await run(`INSERT INTO order_events (order_id, at, type, status, note, admin_name)
+          VALUES (:id, :at, 'status', :st, :note, :by)`, {
+          id, at: new Date(created.getTime() + i * 2 * 3600000).toISOString(), st,
+          note: i === 0 ? "Order placed" : "", by: i === 0 ? "" : pick(["Order Desk", "Dispatch Team"]),
+        });
+      }
       count++;
     }
   }

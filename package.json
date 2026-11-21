@@ -6,10 +6,16 @@
   "scripts": {
     "dev": "node --watch-path=server server/index.js",
     "start": "node server/index.js",
-    "seed:demo": "node server/seed-demo.js"
+    "seed:demo": "node server/seed-demo.js",
+    "build": "node scripts/build-static.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@vercel/blob": "^1.1.1",
     "express": "^5.2.1"
   },
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
 }

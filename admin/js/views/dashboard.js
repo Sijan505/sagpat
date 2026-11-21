@@ -1,4 +1,4 @@
-import { api, state, can, esc, npr, compact, pill, ago, fmtDay, debounce } from "../core.js";
+import { api, state, can, esc, imgSrc, npr, compact, pill, ago, fmtDay, debounce } from "../core.js";
 
 export async function dashboardView(root) {
   const render = async () => {
@@ -65,7 +65,7 @@ export async function dashboardView(root) {
           <div class="table-wrap"><table class="data"><tbody>
             ${d.products.lowStock.map((p) => `
               <tr class="clickable" data-href="#/products/${p.id}">
-                <td style="width:52px"><img class="thumb" src="/${esc(p.image)}" alt=""></td>
+                <td style="width:52px"><img class="thumb" src="${esc(imgSrc(p.image))}" alt=""></td>
                 <td><div class="cell-main">${esc(p.en)}</div><div class="cell-sub ne">${esc(p.ne)}</div></td>
                 <td class="num"><span class="pill ${p.stock === 0 ? "bad" : "warn"}">${p.stock === 0 ? "Out of stock" : `${p.stock} ${esc(p.unit)} left`}</span></td>
               </tr>`).join("") || `<tr><td class="empty">Everything is well stocked.</td></tr>`}

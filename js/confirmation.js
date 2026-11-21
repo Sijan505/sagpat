@@ -142,9 +142,6 @@ async function fillNotifyBox(o) {
   }
   if (user) {
     parts.push(`<a href="account.html" class="btn btn-ghost btn-sm">${icon("receipt")} See all my orders</a>`);
-  } else if (SHOP.GOOGLE_CLIENT_ID) {
-    const next = encodeURIComponent(`confirmation.html?id=${encodeURIComponent(o.id)}&key=${encodeURIComponent(o.key)}`);
-    parts.push(`<a href="account.html?next=${next}" class="btn btn-ghost btn-sm">${icon("user")} Sign in to save this order to your history</a>`);
   }
   box.className = parts.length ? "notify-box" : "";
   box.innerHTML = parts.join("");

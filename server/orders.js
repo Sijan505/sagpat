@@ -1,7 +1,7 @@
 // Order creation and status changes. Prices, stock and totals are always
 // worked out here on the server, never trusted from the browser.
 import { randomBytes } from "node:crypto";
-import { db, one, all, run, now, transaction, getSettings, audit } from "./db.js";
+import { one, all, run, now, transaction, getSettings, audit } from "./db.js";
 import { STATUSES, TRANSITIONS, allowedTransitions } from "./permissions.js";
 import { broadcast } from "./events.js";
 import { notify } from "./customers.js";
@@ -32,7 +32,7 @@ export class OrderError extends Error {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
-export function calcTotals(subtotal, deliveryType, s = getSettings()) {
+export function calcTotals(subtotal, deliveryType, s) {
   let fee = 0;
   if (subtotal > 0) fee = deliveryType === "express" ? s.express_fee : subtotal >= s.free_delivery_over ? 0 : s.standard_fee;
   const tax = round2(subtotal * s.tax_rate);
@@ -46,7 +46,7 @@ const ymd = (d) => d.toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
 const niceDay = (ymd) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 
-export function deliveryWindow(type, at = new Date(), s = getSettings()) {
+export function deliveryWindow(type, at, s) {
   const local = nepalNow(at);
   if (type === "express") {
     const sameDay = local.getUTCHours() < s.express_cutoff_hour;
@@ -56,21 +56,21 @@ export function deliveryWindow(type, at = new Date(), s = getSettings()) {
   return { slotType: "standard", date: ymd(addDays(local, 2)), from: ymd(addDays(local, 2)), to: ymd(addDays(local, 3)) };
 }
 
-export function slotsFor(slotType) {
-  return all("SELECT id, type, label, capacity FROM delivery_slots WHERE active = 1 AND type = :t ORDER BY sort, id", { t: slotType });
+export async function slotsFor(slotType) {
+  return await all("SELECT id, type, label, capacity FROM delivery_slots WHERE active = 1 AND type = :t ORDER BY sort, id", { t: slotType });
 }
 
-export function slotBookings(label, date) {
-  return one(`SELECT COUNT(*) AS n FROM orders WHERE slot = :label AND delivery_date = :date AND status != 'cancelled'`, { label, date }).n;
+export async function slotBookings(label, date) {
+  return (await one(`SELECT COUNT(*) AS n FROM orders WHERE slot = :label AND delivery_date = :date AND status != 'cancelled'`, { label, date })).n;
 }
 
-function makeOrderId(d = nepalNow()) {
+async function makeOrderId(d = nepalNow()) {
   const date = d.toISOString().slice(2, 10).replace(/-/g, "");
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   for (;;) {
     const rand = Array.from(randomBytes(4), (b) => alphabet[b % alphabet.length]).join("");
     const id = `SGP-${date}-${rand}`;
-    if (!one("SELECT 1 AS x FROM orders WHERE id = :id", { id })) return id;
+    if (!await one("SELECT 1 AS x FROM orders WHERE id = :id", { id })) return id;
   }
 }
 
@@ -109,27 +109,28 @@ export function validateCheckout(body) {
   return { customer, deliveryType, slot, notes, payment, items: [...merged] };
 }
 
-export function createOrder(body, userId = null) {
-  const settings = getSettings();
+export async function createOrder(body, userId = null) {
+  const settings = await getSettings();
   if (!settings.accepting_orders) throw new OrderError("Sorry, we're not taking orders right now. Please try again later.", 503);
   const input = validateCheckout(body);
 
-  const order = transaction(() => {
+  const order = await transaction(async () => {
     // Price and stock come from the database
-    const lines = input.items.map(([id, qty]) => {
-      const p = one("SELECT * FROM products WHERE id = :id AND active = 1", { id });
+    const lines = [];
+    for (const [id, qty] of input.items) {
+      const p = await one("SELECT * FROM products WHERE id = :id AND active = 1", { id });
       if (!p) throw new OrderError("One of the items in your cart is no longer available.", 409);
       if (p.stock < qty) {
         throw new OrderError(p.stock === 0 ? `${p.en} just sold out.` : `Only ${p.stock} ${p.en} left. Please reduce the quantity.`, 409);
       }
-      return { p, qty };
-    });
+      lines.push({ p, qty });
+    }
 
     const window = deliveryWindow(input.deliveryType, new Date(), settings);
-    const slots = slotsFor(window.slotType);
+    const slots = await slotsFor(window.slotType);
     const slot = slots.find((s) => s.label === input.slot) || slots[0];
     if (!slot) throw new OrderError("No delivery slots are open for that option right now.", 409);
-    if (slotBookings(slot.label, window.date) >= slot.capacity) {
+    if (await slotBookings(slot.label, window.date) >= slot.capacity) {
       throw new OrderError(`The "${slot.label}" slot is full. Please pick another time.`, 409);
     }
 
@@ -139,18 +140,18 @@ export function createOrder(body, userId = null) {
     const c = input.customer;
 
     // One customer record per phone number; keep their latest details
-    let customer = one("SELECT id FROM customers WHERE phone = :phone", { phone: c.phone });
+    let customer = await one("SELECT id FROM customers WHERE phone = :phone", { phone: c.phone });
     if (customer) {
-      run(`UPDATE customers SET name = :name, email = COALESCE(NULLIF(:email, ''), email), district = :district,
+      await run(`UPDATE customers SET name = :name, email = COALESCE(NULLIF(:email, ''), email), district = :district,
            address = :address, landmark = :landmark WHERE id = :id`, { ...c, id: customer.id });
     } else {
-      const r = run(`INSERT INTO customers (name, phone, email, district, address, landmark, created_at)
+      const r = await run(`INSERT INTO customers (name, phone, email, district, address, landmark, created_at)
                      VALUES (:name, :phone, :email, :district, :address, :landmark, :at)`, { ...c, at });
       customer = { id: Number(r.lastInsertRowid) };
     }
 
-    const id = makeOrderId();
-    run(`INSERT INTO orders (id, access_key, customer_id, created_at, updated_at, status, ship_name, ship_phone, ship_email,
+    const id = await makeOrderId();
+    await run(`INSERT INTO orders (id, access_key, customer_id, created_at, updated_at, status, ship_name, ship_phone, ship_email,
            ship_district, ship_address, ship_landmark, delivery_type, slot, delivery_date, expected_from, expected_to, notes,
            payment_method, payment_status, subtotal, delivery_fee, tax, total, user_id)
          VALUES (:id, :key, :cid, :at, :at, 'pending', :name, :phone, :email, :district, :address, :landmark, :dtype, :slot,
@@ -161,40 +162,39 @@ export function createOrder(body, userId = null) {
       subtotal: totals.subtotal, fee: totals.delivery, tax: totals.tax, total: totals.total, uid: userId,
     });
 
-    const addItem = db.prepare(`INSERT INTO order_items (order_id, product_id, ne, en, unit, price, qty)
-                                VALUES (:id, :pid, :ne, :en, :unit, :price, :qty)`);
     for (const { p, qty } of lines) {
-      addItem.run({ id, pid: p.id, ne: p.ne, en: p.en, unit: p.unit, price: p.price, qty });
-      changeStock(p.id, -qty, `Order ${id}`, null);
-      run("UPDATE products SET sold = sold + :q WHERE id = :id", { q: qty, id: p.id });
+      await run(`INSERT INTO order_items (order_id, product_id, ne, en, unit, price, qty)
+                 VALUES (:id, :pid, :ne, :en, :unit, :price, :qty)`, { id, pid: p.id, ne: p.ne, en: p.en, unit: p.unit, price: p.price, qty });
+      await changeStock(p.id, -qty, `Order ${id}`, null);
+      await run("UPDATE products SET sold = sold + :q WHERE id = :id", { q: qty, id: p.id });
     }
-    run("INSERT INTO order_events (order_id, at, type, status, note) VALUES (:id, :at, 'status', 'pending', 'Order placed')", { id, at });
-    notify(userId, {
+    await run("INSERT INTO order_events (order_id, at, type, status, note) VALUES (:id, :at, 'status', 'pending', 'Order placed')", { id, at });
+    await notify(userId, {
       orderId: id,
       title: `Order placed: ${id}`,
       body: `We've received your order (Rs ${totals.total.toLocaleString("en-IN")}). Expected ${window.from === window.to ? niceDay(window.from) : `${niceDay(window.from)} – ${niceDay(window.to)}`}, ${slot.label}.`,
     });
-    return getOrder(id);
+    return await getOrder(id);
   });
 
-  broadcast("order.created", summary(order));
-  for (const item of order.items) broadcast("product.stock", { id: item.productId });
+  await broadcast("order.created", summary(order));
+  for (const item of order.items) await broadcast("product.stock", { id: item.productId });
   return order;
 }
 
-export function changeStock(productId, change, reason, adminName) {
-  const p = one("SELECT stock FROM products WHERE id = :id", { id: productId });
+export async function changeStock(productId, change, reason, adminName) {
+  const p = await one("SELECT stock FROM products WHERE id = :id", { id: productId });
   if (!p) throw new OrderError("Product not found.", 404);
   const after = p.stock + change;
   if (after < 0) throw new OrderError("Stock can't go below zero.");
-  run("UPDATE products SET stock = :s, updated_at = :at WHERE id = :id", { s: after, at: now(), id: productId });
-  run(`INSERT INTO stock_movements (product_id, at, change, stock_after, reason, admin_name)
+  await run("UPDATE products SET stock = :s, updated_at = :at WHERE id = :id", { s: after, at: now(), id: productId });
+  await run(`INSERT INTO stock_movements (product_id, at, change, stock_after, reason, admin_name)
        VALUES (:id, :at, :change, :after, :reason, :admin)`, { id: productId, at: now(), change, after, reason, admin: adminName });
   return after;
 }
 
-export function getOrder(id) {
-  const o = one("SELECT * FROM orders WHERE id = :id", { id });
+export async function getOrder(id) {
+  const o = await one("SELECT * FROM orders WHERE id = :id", { id });
   if (!o) return null;
   return {
     id: o.id,
@@ -209,9 +209,9 @@ export function getOrder(id) {
     delivery: { type: o.delivery_type, slot: o.slot, date: o.delivery_date, from: o.expected_from, to: o.expected_to, notes: o.notes, rider: o.rider },
     payment: { method: o.payment_method, label: PAYMENT_METHODS[o.payment_method]?.label, status: o.payment_status },
     totals: { subtotal: o.subtotal, delivery: o.delivery_fee, tax: o.tax, total: o.total },
-    items: all("SELECT product_id, ne, en, unit, price, qty FROM order_items WHERE order_id = :id", { id })
+    items: (await all("SELECT product_id, ne, en, unit, price, qty FROM order_items WHERE order_id = :id", { id }))
       .map((i) => ({ productId: i.product_id, ne: i.ne, en: i.en, unit: i.unit, price: i.price, qty: i.qty })),
-    events: all("SELECT at, type, status, note, admin_name FROM order_events WHERE order_id = :id ORDER BY id", { id })
+    events: (await all("SELECT at, type, status, note, admin_name FROM order_events WHERE order_id = :id ORDER BY id", { id }))
       .map((e) => ({ at: e.at, type: e.type, status: e.status, note: e.note, by: e.admin_name })),
   };
 }
@@ -224,9 +224,9 @@ export function summary(o) {
   };
 }
 
-export function setStatus(orderId, nextStatus, admin, note = "") {
-  const order = transaction(() => {
-    const o = one("SELECT status, payment_method, payment_status, user_id FROM orders WHERE id = :id", { id: orderId });
+export async function setStatus(orderId, nextStatus, admin, note = "") {
+  const order = await transaction(async () => {
+    const o = await one("SELECT status, payment_method, payment_status, user_id FROM orders WHERE id = :id", { id: orderId });
     if (!o) throw new OrderError("Order not found.", 404);
     if (!STATUSES[nextStatus]) throw new OrderError("Unknown status.");
     if (!TRANSITIONS[o.status].includes(nextStatus)) {
@@ -235,39 +235,39 @@ export function setStatus(orderId, nextStatus, admin, note = "") {
     if (!allowedTransitions(admin, o.status).includes(nextStatus)) throw new OrderError("You don't have permission to make that change.", 403);
 
     const at = now();
-    run("UPDATE orders SET status = :s, updated_at = :at WHERE id = :id", { s: nextStatus, at, id: orderId });
+    await run("UPDATE orders SET status = :s, updated_at = :at WHERE id = :id", { s: nextStatus, at, id: orderId });
 
     // Cancelling puts the stock back
     if (nextStatus === "cancelled") {
-      for (const i of all("SELECT product_id, qty FROM order_items WHERE order_id = :id", { id: orderId })) {
-        if (one("SELECT 1 AS x FROM products WHERE id = :id", { id: i.product_id })) {
-          changeStock(i.product_id, i.qty, `Order ${orderId} cancelled`, admin.name);
-          run("UPDATE products SET sold = MAX(0, sold - :q) WHERE id = :id", { q: i.qty, id: i.product_id });
+      for (const i of await all("SELECT product_id, qty FROM order_items WHERE order_id = :id", { id: orderId })) {
+        if (await one("SELECT 1 AS x FROM products WHERE id = :id", { id: i.product_id })) {
+          await changeStock(i.product_id, i.qty, `Order ${orderId} cancelled`, admin.name);
+          await run("UPDATE products SET sold = MAX(0, sold - :q) WHERE id = :id", { q: i.qty, id: i.product_id });
         }
       }
     }
     // Cash collected on delivery
     if (nextStatus === "delivered" && o.payment_method === "cod" && o.payment_status !== "Paid") {
-      run("UPDATE orders SET payment_status = 'Paid' WHERE id = :id", { id: orderId });
+      await run("UPDATE orders SET payment_status = 'Paid' WHERE id = :id", { id: orderId });
     }
 
-    run(`INSERT INTO order_events (order_id, at, type, status, note, admin_name)
+    await run(`INSERT INTO order_events (order_id, at, type, status, note, admin_name)
          VALUES (:id, :at, 'status', :s, :note, :admin)`, { id: orderId, at, s: nextStatus, note: note || null, admin: admin.name });
-    audit(admin, "order.status", `${orderId}: ${o.status} → ${nextStatus}`);
+    await audit(admin, "order.status", `${orderId}: ${o.status} → ${nextStatus}`);
     const [title, body] = STATUS_MESSAGES[nextStatus] || [STATUSES[nextStatus], ""];
-    notify(o.user_id, { orderId, title: `${title}: ${orderId}`, body });
-    return getOrder(orderId);
+    await notify(o.user_id, { orderId, title: `${title}: ${orderId}`, body });
+    return await getOrder(orderId);
   });
-  broadcast("order.updated", summary(order));
+  await broadcast("order.updated", summary(order));
   return order;
 }
 
-export function addNote(orderId, admin, note) {
-  if (!one("SELECT 1 AS x FROM orders WHERE id = :id", { id: orderId })) throw new OrderError("Order not found.", 404);
-  run("INSERT INTO order_events (order_id, at, type, note, admin_name) VALUES (:id, :at, 'note', :note, :admin)", {
+export async function addNote(orderId, admin, note) {
+  if (!await one("SELECT 1 AS x FROM orders WHERE id = :id", { id: orderId })) throw new OrderError("Order not found.", 404);
+  await run("INSERT INTO order_events (order_id, at, type, note, admin_name) VALUES (:id, :at, 'note', :note, :admin)", {
     id: orderId, at: now(), note, admin: admin.name,
   });
-  const order = getOrder(orderId);
-  broadcast("order.updated", summary(order));
+  const order = await getOrder(orderId);
+  await broadcast("order.updated", summary(order));
   return order;
 }

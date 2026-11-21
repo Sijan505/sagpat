@@ -3,3 +3,8 @@ dist/
 data/
 *.local.txt
 .env
+public/
+.vercel
+
+.vercel
+.env*

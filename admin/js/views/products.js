@@ -1,4 +1,5 @@
 import {
+  imgSrc,
   api, can, esc, npr, fmtDateTime, toast, modal, confirmDialog, formData, debounce, hashQuery, setHashQuery, icon, ago,
 } from "../core.js";
 
@@ -43,7 +44,7 @@ export async function productsView(root) {
       <thead><tr><th></th><th>Product</th><th>Category</th><th class="num">Price</th><th class="num">Stock</th><th class="num">Sold</th><th>Shop</th><th></th></tr></thead>
       <tbody>${list.map((p) => `
         <tr class="clickable" data-id="${p.id}">
-          <td style="width:52px">${p.image ? `<img class="thumb" src="/${esc(p.image)}" alt="" loading="lazy">` : '<div class="thumb"></div>'}</td>
+          <td style="width:52px">${p.image ? `<img class="thumb" src="${esc(imgSrc(p.image))}" alt="" loading="lazy">` : '<div class="thumb"></div>'}</td>
           <td><div class="cell-main">${esc(p.en)}</div><div class="cell-sub ne">${esc(p.ne)}</div></td>
           <td>${esc(catName(p.cat))}</td>
           <td class="num">${npr(p.price)}<div class="cell-sub">per ${esc(p.unit)}</div></td>
@@ -152,7 +153,7 @@ export async function productEditView(root, id) {
         <section class="card">
           <div class="card-head"><h2>Photo</h2></div>
           <div class="card-body">
-            <img id="photo" src="${v.image ? "/" + esc(v.image) : ""}" alt="" style="width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:6px; background:#eee; ${v.image ? "" : "display:none"}">
+            <img id="photo" src="${v.image ? esc(imgSrc(v.image)) : ""}" alt="" style="width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:6px; background:#eee; ${v.image ? "" : "display:none"}">
             ${editable ? `
               <label for="image" style="margin-top:10px">Image path</label>
               <input id="image" name="image" form="form" value="${esc(v.image || "")}" placeholder="images/your-photo.jpg">
@@ -189,7 +190,7 @@ export async function productEditView(root, id) {
 
   root.querySelector("#image")?.addEventListener("change", (e) => {
     const img = root.querySelector("#photo");
-    img.src = "/" + e.target.value;
+    img.src = imgSrc(e.target.value);
     img.style.display = e.target.value ? "" : "none";
   });
 
@@ -201,7 +202,7 @@ export async function productEditView(root, id) {
       const { image } = await api(`/products/${v.id}/image`, { method: "POST", raw: file });
       root.querySelector("#image").value = image;
       const img = root.querySelector("#photo");
-      img.src = "/" + image;
+      img.src = imgSrc(image);
       img.style.display = "";
       toast("Photo uploaded");
     } catch (err) { toast(err.message, "error"); }
@@ -273,7 +274,7 @@ export async function categoriesView(root) {
       <div class="card"><div class="table-wrap"><table class="data">
         <thead><tr><th></th><th>Name</th><th>ID</th><th class="num">Products</th><th class="num">Order</th>${editable ? "<th></th>" : ""}</tr></thead>
         <tbody>${cats.map((c) => `
-          <tr><td style="width:52px">${c.image ? `<img class="thumb" src="/${esc(c.image)}" alt="">` : ""}</td>
+          <tr><td style="width:52px">${c.image ? `<img class="thumb" src="${esc(imgSrc(c.image))}" alt="">` : ""}</td>
             <td><div class="cell-main">${esc(c.en)}</div><div class="cell-sub ne">${esc(c.ne)}</div></td>
             <td><code>${esc(c.id)}</code></td><td class="num"><a href="#/products?cat=${esc(c.id)}">${c.products}</a></td><td class="num">${c.sort}</td>
             ${editable ? `<td class="num"><button type="button" class="btn btn-default btn-sm" data-edit="${esc(c.id)}">Edit</button>

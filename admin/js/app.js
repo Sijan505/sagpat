@@ -114,25 +114,42 @@ async function route() {
   viewEl.focus({ preventScroll: true });
 }
 
-// ---------- Live updates (Server-Sent Events) ----------
+// ---------- Live updates (polls the server for changes) ----------
+const POLL_MS = 8000;
+
 function connectEvents() {
   const liveEl = document.getElementById("live");
-  const source = new EventSource("/api/admin/events");
-  source.onopen = () => { liveEl.classList.add("on"); liveEl.textContent = "Live updates on"; };
-  source.onerror = () => { liveEl.classList.remove("on"); liveEl.textContent = "Reconnecting…"; };
+  let after = null;
 
-  const handle = (type) => (e) => {
-    const data = JSON.parse(e.data);
+  const handle = ({ type, data }) => {
     if (type === "order.created") {
       const money = data.total !== undefined ? ` · ${npr(data.total)}` : "";
       toast(`New order <a href="#/orders/${esc(data.id)}">${esc(data.id)}</a> from ${esc(data.name)}${money}`, "new", { html: true, ms: 8000 });
     }
-    refreshCounts();
     current?.onEvent?.(type, data);
   };
-  for (const type of ["order.created", "order.updated", "order.deleted", "product.updated", "product.stock", "category.updated", "slot.updated"]) {
-    source.addEventListener(type, handle(type));
+
+  async function poll() {
+    if (!document.hidden) {
+      try {
+        const res = await fetch(`/api/admin/events${after === null ? "" : `?after=${after}`}`, { cache: "no-store" });
+        if (res.status === 401) return; // signed out
+        if (!res.ok) throw new Error();
+        const { last, events } = await res.json();
+        after = last;
+        events.forEach(handle);
+        if (events.length) refreshCounts();
+        liveEl.classList.add("on");
+        liveEl.textContent = "Live updates on";
+      } catch {
+        liveEl.classList.remove("on");
+        liveEl.textContent = "Reconnecting…";
+      }
+    }
+    setTimeout(poll, POLL_MS);
   }
+  poll();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshCounts(); });
 }
 
 async function start() {

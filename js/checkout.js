@@ -198,6 +198,7 @@ async function placeOrder() {
       }),
     });
     const order = await res.json().catch(() => ({}));
+    if (res.status === 401 && order.signIn) return showSignInGate(); // session expired
     if (!res.ok) throw new Error(order.error || "We couldn't place your order. Please try again.");
 
     if (order.payment.method === "khalti" || order.payment.method === "esewa") await startOnlinePayment(order);
@@ -215,6 +216,23 @@ async function placeOrder() {
   }
 }
 
+function showSignInGate() {
+  document.getElementById("checkout-main").hidden = true;
+  const gate = document.getElementById("checkout-signin");
+  gate.hidden = false;
+  gate.innerHTML = `
+    <div class="panel empty-state">
+      <span class="ne">अर्डर गर्न साइन इन गर्नुहोस्</span>
+      <h2>Sign in to place your order</h2>
+      <p>Sign in with your Google account to check out. Your cart is saved, and you'll get your order history and
+        notifications as your order is confirmed, packed and delivered.</p>
+      ${SHOP.GOOGLE_CLIENT_ID
+        ? `<a href="account.html?next=checkout.html" class="btn btn-primary btn-lg">${icon("user")} Sign in with Google</a>`
+        : `<p class="field-hint">Google sign-in isn't set up on this shop yet, so orders can't be placed online. Please call ${escapeHtml(SHOP.PHONE)} to order.</p>`}
+      <p style="margin-top: 14px;"><a href="cart.html" class="link-arrow">Back to cart</a></p>
+    </div>`;
+}
+
 // ---------- Init ----------
 if (!Cart.lines().length) {
   document.getElementById("checkout-main").hidden = true;
@@ -227,16 +245,14 @@ if (!Cart.lines().length) {
   panels.forEach((p) => p.querySelector("h2").setAttribute("tabindex", "-1"));
 
   // Signed-in customers: the order goes into their history. Guests get a nudge.
+  // Ordering needs a Google sign-in; guests see a sign-in step instead of the form
   Account.ready.then((user) => {
+    if (!user) return showSignInGate();
     const note = document.createElement("p");
     note.className = "account-note";
-    if (user) {
-      note.innerHTML = `${icon("user")} Signed in as <strong>${escapeHtml(user.name)}</strong>. This order will be saved to your order history and we'll notify you as it moves along.`;
-      if (!form.elements.name.value) form.elements.name.value = user.name;
-      if (!form.elements.email.value) form.elements.email.value = user.email;
-    } else if (SHOP.GOOGLE_CLIENT_ID) {
-      note.innerHTML = `${icon("user")} <a href="account.html?next=checkout.html">Sign in with Google</a> to keep your order history and get order notifications. Or just carry on as a guest.`;
-    } else return;
+    note.innerHTML = `${icon("user")} Signed in as <strong>${escapeHtml(user.name)}</strong>. This order will be saved to your order history and we'll notify you as it moves along.`;
+    if (!form.elements.name.value) form.elements.name.value = user.name;
+    if (!form.elements.email.value) form.elements.email.value = user.email;
     document.querySelector(".stepper").before(note);
   });
 

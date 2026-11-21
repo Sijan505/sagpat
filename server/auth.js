@@ -28,10 +28,10 @@ export function validatePassword(password) {
 
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 
-export function createSession(res, adminId) {
+export async function createSession(res, adminId) {
   const token = randomBytes(32).toString("base64url");
   const expires = new Date(Date.now() + SESSION_HOURS * 3600 * 1000);
-  run("INSERT INTO sessions (token_hash, admin_id, created_at, expires_at) VALUES (:t, :a, :c, :e)", {
+  await run("INSERT INTO sessions (token_hash, admin_id, created_at, expires_at) VALUES (:t, :a, :c, :e)", {
     t: sha256(token), a: adminId, c: now(), e: expires.toISOString(),
   });
   res.cookie(SESSION_COOKIE, token, {
@@ -43,14 +43,14 @@ export function createSession(res, adminId) {
   });
 }
 
-export function destroySession(req, res) {
+export async function destroySession(req, res) {
   const token = req.cookies[SESSION_COOKIE];
-  if (token) run("DELETE FROM sessions WHERE token_hash = :t", { t: sha256(token) });
+  if (token) await run("DELETE FROM sessions WHERE token_hash = :t", { t: sha256(token) });
   res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
-export function destroyAllSessions(adminId) {
-  run("DELETE FROM sessions WHERE admin_id = :a", { a: adminId });
+export async function destroyAllSessions(adminId) {
+  await run("DELETE FROM sessions WHERE admin_id = :a", { a: adminId });
 }
 
 // Tiny cookie parser (avoids another dependency)
@@ -62,10 +62,10 @@ export function cookies(req, _res, next) {
   next();
 }
 
-export function loadAdmin(req, _res, next) {
+export async function loadAdmin(req, _res, next) {
   const token = req.cookies[SESSION_COOKIE];
   if (token) {
-    const row = one(`
+    const row = await one(`
       SELECT a.id, a.name, a.email, a.role, a.active, s.expires_at
       FROM sessions s JOIN admins a ON a.id = s.admin_id
       WHERE s.token_hash = :t`, { t: sha256(token) });
@@ -80,7 +80,7 @@ export function requireAuth(req, res, next) {
 }
 
 // requirePerm("a", "b") passes if the admin has ANY of the listed permissions
-export const requirePerm = (...perms) => (req, res, next) => {
+export const requirePerm = (...perms) => async (req, res, next) => {
   if (!req.admin) return res.status(401).json({ error: "Please sign in." });
   if (!perms.some((p) => can(req.admin, p))) return res.status(403).json({ error: "You don't have permission to do that." });
   next();
@@ -88,7 +88,7 @@ export const requirePerm = (...perms) => (req, res, next) => {
 
 // Simple in-memory rate limiter (per IP + key)
 const hits = new Map();
-export const rateLimit = ({ key, max, windowMs }) => (req, res, next) => {
+export const rateLimit = ({ key, max, windowMs }) => async (req, res, next) => {
   const id = `${key}:${req.ip}`;
   const nowMs = Date.now();
   const entry = hits.get(id) || { count: 0, reset: nowMs + windowMs };
@@ -102,6 +102,6 @@ export const rateLimit = ({ key, max, windowMs }) => (req, res, next) => {
   next();
 };
 
-export function cleanupSessions() {
-  run("DELETE FROM sessions WHERE expires_at < :n", { n: now() });
+export async function cleanupSessions() {
+  await run("DELETE FROM sessions WHERE expires_at < :n", { n: now() });
 }

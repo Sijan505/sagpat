@@ -96,8 +96,9 @@ function renderSignInCard() {
     <div class="panel signin-card">
       <div class="signin-text">
         <span class="ne">साइन इन गर्नुहोस्</span>
-        <h2>Sign in to see all your orders</h2>
+        <h2>Sign in to order and see your orders</h2>
         <ul class="signin-perks">
+          <li>${icon("bag")} Sign in once to place orders</li>
           <li>${icon("receipt")} Order history on any phone or computer</li>
           <li>${icon("bell")} Notifications when your order is confirmed, packed and on its way</li>
           <li>${icon("check")} Faster checkout with your details filled in</li>

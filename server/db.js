@@ -1,17 +1,22 @@
-// SQLite database (Node's built-in node:sqlite, no native add-ons needed).
-import { DatabaseSync } from "node:sqlite";
+// Database: Turso (hosted SQLite) when TURSO_DATABASE_URL is set, otherwise a
+// local SQLite file in data/. Both speak the same SQL through @libsql/client.
+import { createClient } from "@libsql/client";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REMOTE_URL = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || "";
 const DB_FILE = process.env.DB_FILE || path.join(ROOT, "data", "sagpat.db");
-mkdirSync(path.dirname(DB_FILE), { recursive: true });
+export const DATA_DIR = path.dirname(DB_FILE);
+if (!REMOTE_URL) mkdirSync(path.dirname(DB_FILE), { recursive: true });
 
-export const db = new DatabaseSync(DB_FILE);
-db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;");
+export const db = createClient(REMOTE_URL
+  ? { url: REMOTE_URL, authToken: process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN }
+  : { url: pathToFileURL(DB_FILE).href });
 
-db.exec(`
+const SCHEMA = `
   CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -156,10 +161,8 @@ db.exec(`
     action TEXT NOT NULL,
     detail TEXT
   );
-`);
 
-// Shop customers who sign in with Google, their sessions and notifications
-db.exec(`
+  -- Shop customers who sign in with Google, their sessions and notifications
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     google_sub TEXT NOT NULL UNIQUE,
@@ -187,22 +190,32 @@ db.exec(`
     read_at TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
-`);
 
-// Orders placed while signed in belong to that account (added after launch,
-// so older databases get the column here)
-if (!db.prepare("PRAGMA table_info(orders)").all().some((c) => c.name === "user_id")) {
-  db.exec("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
+  -- Change feed the admin panel polls for live updates (see events.js)
+  CREATE TABLE IF NOT EXISTS live_events (
+    id INTEGER PRIMARY KEY,
+    at TEXT NOT NULL,
+    type TEXT NOT NULL,
+    data TEXT NOT NULL
+  );
+`;
+
+// Creates tables on first run and upgrades older databases
+export async function initDb() {
+  if (!REMOTE_URL) await db.executeMultiple("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;");
+  await db.executeMultiple(SCHEMA);
+  // Orders placed while signed in belong to that account (added after launch)
+  const cols = (await db.execute("PRAGMA table_info(orders)")).rows;
+  if (!cols.some((c) => c.name === "user_id")) {
+    await db.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
+  }
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)");
 }
-db.exec("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)");
 
 export const now = () => new Date().toISOString();
 
-// Plain objects instead of null-prototype rows, so they serialise predictably
-const plain = (row) => (row ? { ...row } : row);
-
-// node:sqlite rejects unknown keys and silently binds missing ones as NULL.
-// Pass only the parameters a statement uses, and fail loudly if one is missing.
+// Statements bind only the parameters they use, and fail loudly if one is missing
+// (otherwise a typo would silently bind NULL).
 function bind(sql, params) {
   const out = {};
   for (const [, name] of sql.matchAll(/[:$@]([A-Za-z_]\w*)/g)) {
@@ -211,19 +224,37 @@ function bind(sql, params) {
   }
   return out;
 }
-export const one = (sql, params = {}) => plain(db.prepare(sql).get(bind(sql, params)));
-export const all = (sql, params = {}) => db.prepare(sql).all(bind(sql, params)).map(plain);
-export const run = (sql, params = {}) => db.prepare(sql).run(bind(sql, params));
 
-export function transaction(fn) {
-  db.exec("BEGIN IMMEDIATE");
+// Inside transaction(), queries run on the transaction instead of the client
+const txStore = new AsyncLocalStorage();
+const exec = (sql, params) => (txStore.getStore() || db).execute({ sql, args: bind(sql, params) });
+const toObject = (rs, row) => Object.fromEntries(rs.columns.map((c, i) => [c, row[i]]));
+
+export const one = async (sql, params = {}) => {
+  const rs = await exec(sql, params);
+  return rs.rows.length ? toObject(rs, rs.rows[0]) : undefined;
+};
+export const all = async (sql, params = {}) => {
+  const rs = await exec(sql, params);
+  return rs.rows.map((row) => toObject(rs, row));
+};
+export const run = async (sql, params = {}) => {
+  const rs = await exec(sql, params);
+  return { changes: rs.rowsAffected, lastInsertRowid: rs.lastInsertRowid === undefined ? undefined : Number(rs.lastInsertRowid) };
+};
+
+export async function transaction(fn) {
+  if (txStore.getStore()) return fn(); // already inside one
+  const tx = await db.transaction("write");
   try {
-    const result = fn();
-    db.exec("COMMIT");
+    const result = await txStore.run(tx, fn);
+    await tx.commit();
     return result;
   } catch (err) {
-    db.exec("ROLLBACK");
+    await tx.rollback().catch(() => {});
     throw err;
+  } finally {
+    tx.close();
   }
 }
 
@@ -239,19 +270,21 @@ export const DEFAULT_SETTINGS = {
   accepting_orders: true,
 };
 
-export function getSettings() {
-  const rows = all("SELECT key, value FROM settings");
+export async function getSettings() {
+  const rows = await all("SELECT key, value FROM settings");
   const stored = Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
   return { ...DEFAULT_SETTINGS, ...stored };
 }
 
-export function saveSettings(values) {
-  const stmt = db.prepare("INSERT INTO settings (key, value) VALUES (:key, :value) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
-  for (const [key, value] of Object.entries(values)) stmt.run({ key, value: JSON.stringify(value) });
+export async function saveSettings(values) {
+  for (const [key, value] of Object.entries(values)) {
+    await run("INSERT INTO settings (key, value) VALUES (:key, :value) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      { key, value: JSON.stringify(value) });
+  }
 }
 
-export function audit(admin, action, detail = "") {
-  run("INSERT INTO audit_log (at, admin_id, admin_name, action, detail) VALUES (:at, :id, :name, :action, :detail)", {
+export async function audit(admin, action, detail = "") {
+  await run("INSERT INTO audit_log (at, admin_id, admin_name, action, detail) VALUES (:at, :id, :name, :action, :detail)", {
     at: now(), id: admin?.id ?? null, name: admin?.name ?? "system", action, detail,
   });
 }
