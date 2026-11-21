@@ -14,13 +14,26 @@ import { cleanupEvents } from "./events.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// Database setup runs once per server start (or per cold start on Vercel)
-export const ready = (async () => {
-  await initDb();
-  await seedIfEmpty();
-  await cleanup();
-})();
-ready.catch((err) => console.error("Database setup failed:", err));
+// Database setup runs once per server start (or per cold start on Vercel).
+// If it fails (e.g. the database is briefly unreachable), the next request
+// tries again instead of the server staying broken.
+let setupPromise = null;
+function ensureReady() {
+  if (!setupPromise) {
+    setupPromise = (async () => {
+      await initDb();
+      await seedIfEmpty();
+      await cleanup();
+    })().catch((err) => {
+      setupPromise = null;
+      console.error("Database setup failed, will retry on the next request:", err);
+      throw err;
+    });
+  }
+  return setupPromise;
+}
+export const ready = ensureReady();
+ready.catch(() => {}); // logged above; requests retry
 
 let lastCleanup = 0;
 async function cleanup() {
@@ -34,7 +47,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", process.env.VERCEL ? true : "loopback");
 
 app.use(async (_req, _res, next) => {
-  await ready;
+  await ensureReady();
   // Expired sessions and old live events are tidied up about once an hour
   if (Date.now() - lastCleanup > 60 * 60 * 1000) cleanup().catch(console.error);
   next();
@@ -67,7 +80,7 @@ for (const dir of ["css", "js", "images"]) app.use(`/${dir}`, express.static(pat
 app.get(["/admin", "/admin/"], (_req, res) => res.sendFile(path.join(ROOT, "admin", "index.html")));
 app.use("/admin", express.static(path.join(ROOT, "admin"), staticOpts));
 
-export const PAGES = ["index", "products", "product", "cart", "checkout", "confirmation", "about", "credits", "account"];
+export const PAGES = ["index", "products", "product", "cart", "checkout", "confirmation", "about", "credits", "account", "privacy"];
 app.get("/", (_req, res) => res.sendFile(path.join(ROOT, "index.html")));
 app.get("/:page.html", (req, res, next) => {
   const file = path.join(ROOT, `${req.params.page}.html`);

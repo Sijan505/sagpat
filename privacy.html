@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy | Sagpat (सगपात)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><path d=%22M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z%22 fill=%22%23E8752F%22/><path d=%22M8 18h24l-3 15H11Z%22 fill=%22%232D5016%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="privacy">
+  <header id="site-header" class="site-header"></header>
+
+  <div class="page-head">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Privacy</div>
+      <h1><span class="ne">गोपनीयता नीति</span>Privacy Policy</h1>
+    </div>
+  </div>
+
+  <main class="section">
+    <div class="container prose" style="max-width: 760px;">
+      <p class="lead">We only collect what we need to deliver your order, and we never sell your information.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><strong>Your Google account basics</strong> when you sign in with Google: your name, email address and profile picture.
+          We don't get your Google password or access to anything else in your Google account.</li>
+        <li><strong>Delivery details</strong> you type at checkout: name, phone number, address, landmark and any delivery notes.</li>
+        <li><strong>Your orders</strong>: what you bought, when, the price, the payment method and the delivery status.</li>
+      </ul>
+
+      <h2>How we use it</h2>
+      <ul>
+        <li>To deliver your orders and call you about them.</li>
+        <li>To show your order history and send you notifications about your orders on this website.</li>
+        <li>To keep records our business is required to keep, such as invoices.</li>
+      </ul>
+      <p>We don't sell or rent your information, and we don't use it for advertising. Our staff only see what they need for
+        their job (for example, delivery riders see your address and phone number).</p>
+
+      <h2>Where it's stored</h2>
+      <p>Your information is stored securely with the services that run this website: Vercel (hosting), Turso (database)
+        and Google (sign-in). Your cart and wishlist are kept in your own browser.</p>
+
+      <h2>Your choices</h2>
+      <p>You can sign out at any time. To see, correct or delete the information we hold about you, or to delete your
+        account, contact us at <strong data-shop="email">our support email</strong> or call <strong data-shop="phone">our phone number</strong>.
+        You can also remove Sagpat's access to your Google account at
+        <a href="https://myaccount.google.com/connections" rel="noopener">myaccount.google.com/connections</a>.</p>
+
+      <h2>Changes</h2>
+      <p>If we change this policy, we'll update this page. Last updated: 21 November 2026.</p>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    document.querySelectorAll("[data-shop=email]").forEach((el) => (el.textContent = SHOP.EMAIL));
+    document.querySelectorAll("[data-shop=phone]").forEach((el) => (el.textContent = SHOP.PHONE));
+  </script>
+</body>
+</html>

@@ -293,6 +293,7 @@ function renderLayout() {
             <li><a href="about.html#contact">Contact us</a></li>
             <li><a href="about.html">About Sagpat</a></li>
             <li><a href="credits.html">Photo credits</a></li>
+            <li><a href="privacy.html">Privacy policy</a></li>
           </ul>
         </div>
         <div>
