@@ -133,9 +133,19 @@ async function renderSignedOut() {
 }
 
 // ---------- Google sign-in ----------
+// Redirect mode: the button takes the customer to Google's sign-in page, and
+// Google sends them back through /api/auth/google/callback. The page to return
+// to is remembered on this device in the meantime.
+const NEXT_KEY = "sagpat_signin_next";
+
 function loadGoogleButton() {
   const draw = () => {
-    google.accounts.id.initialize({ client_id: SHOP.GOOGLE_CLIENT_ID, callback: onGoogleCredential, ux_mode: "popup" });
+    if (nextPage) store.set(NEXT_KEY, nextPage);
+    google.accounts.id.initialize({
+      client_id: SHOP.GOOGLE_CLIENT_ID,
+      ux_mode: "redirect",
+      login_uri: `${location.origin}/api/auth/google/callback`,
+    });
     google.accounts.id.renderButton(document.getElementById("google-btn"), {
       theme: "outline", size: "large", shape: "pill", text: "continue_with", logo_alignment: "left", width: 280,
     });
@@ -157,30 +167,25 @@ function showSigninError(msg) {
   el.style.color = "var(--danger)";
 }
 
-async function onGoogleCredential({ credential }) {
-  try {
-    const res = await fetch("/api/auth/google", {
+// Back from Google: move orders placed on this device into the account, then
+// continue to the page the customer was on (e.g. checkout)
+async function finishSignIn() {
+  const saved = store.get(KEYS.orders, []);
+  if (saved.length) {
+    await fetch("/api/me/orders/claim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Sign-in failed. Please try again.");
-
-    // Move orders placed on this device into the new account
-    const saved = store.get(KEYS.orders, []);
-    if (saved.length) {
-      await fetch("/api/me/orders/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orders: saved.map(({ id, key }) => ({ id, key })) }),
-      }).catch(() => {});
-    }
-    if (nextPage) location.href = nextPage;
-    else location.reload();
-  } catch (err) {
-    showSigninError(err.message);
+      body: JSON.stringify({ orders: saved.map(({ id, key }) => ({ id, key })) }),
+    }).catch(() => {});
   }
+  const next = store.get(NEXT_KEY, null);
+  store.set(NEXT_KEY, null);
+  if (next && /^[a-z]+\.html(\?[\w=&%.-]*)?$/.test(next)) {
+    location.replace(next);
+    return true;
+  }
+  history.replaceState(null, "", "account.html");
+  return false;
 }
 
 // ---------- Events ----------
@@ -227,7 +232,12 @@ async function loadHistory() {
 }
 
 Account.ready.then(async (user) => {
-  if (!user) return renderSignedOut();
+  if (!user) {
+    await renderSignedOut();
+    if (accountParams.get("signin_error")) showSigninError(accountParams.get("signin_error"));
+    return;
+  }
+  if (accountParams.get("signed_in") && (await finishSignIn())) return;
   if (nextPage) return (location.href = nextPage);
   renderSignedIn(user);
   await loadHistory();

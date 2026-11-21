@@ -1,5 +1,5 @@
 // Public endpoints used by the storefront.
-import { Router } from "express";
+import express, { Router } from "express";
 import { all, one, run, getSettings, productFromRow } from "../db.js";
 import { createOrder, getOrder, slotsFor, OrderError } from "../orders.js";
 import { rateLimit } from "../auth.js";
@@ -87,6 +87,31 @@ export function publicRoutes({ testimonials }) {
       throw err;
     }
   });
+
+  // Google's redirect sign-in: after the customer picks an account on Google's
+  // page, Google POSTs the signed ID token here as a form, then we send them
+  // back to the shop signed in. (No popup window, so it works on phones and
+  // with popup blockers.)
+  router.post("/api/auth/google/callback", rateLimit({ key: "google", max: 30, windowMs: 10 * 60 * 1000 }),
+    express.urlencoded({ extended: false, limit: "20kb" }), async (req, res) => {
+      const back = (query) => res.redirect(303, `/account.html?${query}`);
+      // Google's CSRF check: the form field must match the cookie it set (when the browser sent it)
+      const formToken = req.body?.g_csrf_token;
+      const cookieToken = req.cookies.g_csrf_token;
+      if (!formToken || (cookieToken && cookieToken !== formToken)) {
+        return back(`signin_error=${encodeURIComponent("Sign-in failed. Please try again.")}`);
+      }
+      try {
+        const claims = await verifyGoogleToken(req.body.credential);
+        const user = await upsertGoogleUser(claims);
+        await destroyUserSession(req, res);
+        await createUserSession(res, user.id);
+        back("signed_in=1");
+      } catch (err) {
+        if (err instanceof AuthError) return back(`signin_error=${encodeURIComponent(err.message)}`);
+        throw err;
+      }
+    });
 
   router.post("/api/auth/logout", async (req, res) => {
     await destroyUserSession(req, res);
