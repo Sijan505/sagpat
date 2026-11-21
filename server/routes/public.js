@@ -1,9 +1,13 @@
 // Public endpoints used by the storefront.
 import { Router } from "express";
-import { all, getSettings, productFromRow } from "../db.js";
+import { all, one, run, getSettings, productFromRow } from "../db.js";
 import { createOrder, getOrder, slotsFor, OrderError } from "../orders.js";
 import { rateLimit } from "../auth.js";
 import { STATUSES } from "../permissions.js";
+import {
+  GOOGLE_CLIENT_ID, AuthError, verifyGoogleToken, upsertGoogleUser, createUserSession, destroyUserSession,
+  requireUser, listNotifications, markNotificationsRead,
+} from "../customers.js";
 
 export function publicRoutes({ testimonials }) {
   const router = Router();
@@ -24,6 +28,7 @@ export function publicRoutes({ testimonials }) {
       PHONE: s.phone,
       EMAIL: s.email,
       ACCEPTING_ORDERS: s.accepting_orders,
+      GOOGLE_CLIENT_ID,
       SLOTS: {
         standard: slotsFor("standard").map((x) => x.label),
         expressToday: slotsFor("express_today").map((x) => x.label),
@@ -44,7 +49,7 @@ export function publicRoutes({ testimonials }) {
 
   router.post("/api/orders", rateLimit({ key: "order", max: 20, windowMs: 10 * 60 * 1000 }), (req, res) => {
     try {
-      const order = createOrder(req.body);
+      const order = createOrder(req.body, req.user?.id ?? null);
       res.status(201).json(publicOrder(order));
     } catch (err) {
       if (err instanceof OrderError) return res.status(err.status).json({ error: err.message });
@@ -59,8 +64,83 @@ export function publicRoutes({ testimonials }) {
     res.json(publicOrder(order));
   });
 
+  // ---------- Customer accounts (Google sign-in) ----------
+  const noStore = (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); };
+  router.use(["/api/auth", "/api/me"], noStore);
+
+  router.post("/api/auth/google", rateLimit({ key: "google", max: 30, windowMs: 10 * 60 * 1000 }), async (req, res) => {
+    try {
+      const claims = await verifyGoogleToken(req.body?.credential);
+      const user = upsertGoogleUser(claims);
+      destroyUserSession(req, res);
+      createUserSession(res, user.id);
+      res.json({ user: publicUser(user) });
+    } catch (err) {
+      if (err instanceof AuthError) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  });
+
+  router.post("/api/auth/logout", (req, res) => {
+    destroyUserSession(req, res);
+    res.json({ ok: true });
+  });
+
+  router.get("/api/me", (req, res) => {
+    res.json({ user: req.user ? publicUser(req.user) : null, googleEnabled: !!GOOGLE_CLIENT_ID });
+  });
+
+  // Order history for the signed-in customer
+  router.get("/api/me/orders", requireUser, (req, res) => {
+    const orders = all(`
+      SELECT id, access_key, created_at, status, total, delivery_type, slot, expected_from, expected_to, payment_method, payment_status
+      FROM orders WHERE user_id = :u ORDER BY created_at DESC LIMIT 200`, { u: req.user.id });
+    const items = all(`
+      SELECT order_id, product_id, ne, en, qty FROM order_items
+      WHERE order_id IN (SELECT id FROM orders WHERE user_id = :u)`, { u: req.user.id });
+    res.json({
+      orders: orders.map((o) => ({
+        id: o.id,
+        key: o.access_key,
+        createdAt: o.created_at,
+        status: o.status,
+        statusLabel: STATUSES[o.status],
+        total: o.total,
+        delivery: { type: o.delivery_type, slot: o.slot, from: o.expected_from, to: o.expected_to },
+        payment: { method: o.payment_method, status: o.payment_status },
+        items: items.filter((i) => i.order_id === o.id).map((i) => ({ productId: i.product_id, ne: i.ne, en: i.en, qty: i.qty })),
+      })),
+    });
+  });
+
+  // Orders placed on this device before signing in (the browser keeps their
+  // private links) are added to the account. The key proves they're yours.
+  router.post("/api/me/orders/claim", requireUser, (req, res) => {
+    const list = Array.isArray(req.body?.orders) ? req.body.orders.slice(0, 50) : [];
+    let claimed = 0;
+    for (const o of list) {
+      const row = one("SELECT access_key, user_id FROM orders WHERE id = :id", { id: String(o?.id ?? "") });
+      if (row && row.user_id == null && row.access_key === String(o?.key ?? "")) {
+        run("UPDATE orders SET user_id = :u WHERE id = :id", { u: req.user.id, id: String(o.id) });
+        claimed++;
+      }
+    }
+    res.json({ claimed });
+  });
+
+  router.get("/api/me/notifications", requireUser, (req, res) => {
+    res.json(listNotifications(req.user.id));
+  });
+
+  router.post("/api/me/notifications/read", requireUser, (req, res) => {
+    markNotificationsRead(req.user.id);
+    res.json({ ok: true });
+  });
+
   return router;
 }
+
+const publicUser = (u) => ({ name: u.name, email: u.email, picture: u.picture });
 
 function publicOrder(o) {
   return {

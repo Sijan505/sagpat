@@ -7,28 +7,31 @@ import { seedIfEmpty } from "./seed.js";
 import { cookies, loadAdmin, cleanupSessions } from "./auth.js";
 import { publicRoutes } from "./routes/public.js";
 import { adminRoutes } from "./routes/admin.js";
+import { loadUser, cleanupUserSessions } from "./customers.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT) || 3000;
 
 const catalog = seedIfEmpty();
 cleanupSessions();
-setInterval(cleanupSessions, 60 * 60 * 1000).unref();
+cleanupUserSessions();
+setInterval(() => { cleanupSessions(); cleanupUserSessions(); }, 60 * 60 * 1000).unref();
 
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", "loopback");
 
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.set({
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Referrer-Policy": "same-origin",
+    // Google's sign-in button needs to see which site it's on (origin only)
+    "Referrer-Policy": req.path.startsWith("/admin") ? "same-origin" : "strict-origin-when-cross-origin",
   });
   next();
 });
 app.use(express.json({ limit: "100kb" }));
-app.use(cookies, loadAdmin);
+app.use(cookies, loadAdmin, loadUser);
 
 // Catalog script + public API (must come before the static /js folder)
 app.use(publicRoutes({ testimonials: catalog.TESTIMONIALS }));
@@ -44,7 +47,7 @@ for (const dir of ["css", "js", "images"]) app.use(`/${dir}`, express.static(pat
 app.get(["/admin", "/admin/"], (_req, res) => res.sendFile(path.join(ROOT, "admin", "index.html")));
 app.use("/admin", express.static(path.join(ROOT, "admin"), staticOpts));
 
-const PAGES = ["index", "products", "product", "cart", "checkout", "confirmation", "about", "credits"];
+const PAGES = ["index", "products", "product", "cart", "checkout", "confirmation", "about", "credits", "account"];
 app.get("/", (_req, res) => res.sendFile(path.join(ROOT, "index.html")));
 app.get("/:page.html", (req, res, next) => {
   const file = path.join(ROOT, `${req.params.page}.html`);

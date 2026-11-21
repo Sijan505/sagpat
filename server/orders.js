@@ -4,6 +4,17 @@ import { randomBytes } from "node:crypto";
 import { db, one, all, run, now, transaction, getSettings, audit } from "./db.js";
 import { STATUSES, TRANSITIONS, allowedTransitions } from "./permissions.js";
 import { broadcast } from "./events.js";
+import { notify } from "./customers.js";
+
+// What signed-in customers are told when their order moves along
+const STATUS_MESSAGES = {
+  confirmed: ["Order confirmed", "Our team has checked your order and is getting it ready."],
+  packed: ["Order packed", "Your items are picked fresh and packed."],
+  out_for_delivery: ["Out for delivery", "Your order is on the way. The rider will call before arriving."],
+  delivered: ["Order delivered", "Enjoy! Tell us if anything isn't fresh."],
+  failed: ["Delivery missed", "We couldn't reach you. We'll call to arrange another time."],
+  cancelled: ["Order cancelled", "Your order was cancelled. Call us if this is a surprise."],
+};
 
 export const PAYMENT_METHODS = {
   cod: { label: "Cash on Delivery", status: "Pay on delivery" },
@@ -33,6 +44,7 @@ const NPT_OFFSET_MIN = 345;
 const nepalNow = (d = new Date()) => new Date(d.getTime() + NPT_OFFSET_MIN * 60000);
 const ymd = (d) => d.toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
+const niceDay = (ymd) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 
 export function deliveryWindow(type, at = new Date(), s = getSettings()) {
   const local = nepalNow(at);
@@ -97,7 +109,7 @@ export function validateCheckout(body) {
   return { customer, deliveryType, slot, notes, payment, items: [...merged] };
 }
 
-export function createOrder(body) {
+export function createOrder(body, userId = null) {
   const settings = getSettings();
   if (!settings.accepting_orders) throw new OrderError("Sorry, we're not taking orders right now. Please try again later.", 503);
   const input = validateCheckout(body);
@@ -140,13 +152,13 @@ export function createOrder(body) {
     const id = makeOrderId();
     run(`INSERT INTO orders (id, access_key, customer_id, created_at, updated_at, status, ship_name, ship_phone, ship_email,
            ship_district, ship_address, ship_landmark, delivery_type, slot, delivery_date, expected_from, expected_to, notes,
-           payment_method, payment_status, subtotal, delivery_fee, tax, total)
+           payment_method, payment_status, subtotal, delivery_fee, tax, total, user_id)
          VALUES (:id, :key, :cid, :at, :at, 'pending', :name, :phone, :email, :district, :address, :landmark, :dtype, :slot,
-           :ddate, :efrom, :eto, :notes, :pay, :pstatus, :subtotal, :fee, :tax, :total)`, {
+           :ddate, :efrom, :eto, :notes, :pay, :pstatus, :subtotal, :fee, :tax, :total, :uid)`, {
       id, key: randomBytes(16).toString("base64url"), cid: customer.id, at, ...c,
       dtype: input.deliveryType, slot: slot.label, ddate: window.date, efrom: window.from, eto: window.to, notes: input.notes,
       pay: input.payment, pstatus: PAYMENT_METHODS[input.payment].status,
-      subtotal: totals.subtotal, fee: totals.delivery, tax: totals.tax, total: totals.total,
+      subtotal: totals.subtotal, fee: totals.delivery, tax: totals.tax, total: totals.total, uid: userId,
     });
 
     const addItem = db.prepare(`INSERT INTO order_items (order_id, product_id, ne, en, unit, price, qty)
@@ -157,6 +169,11 @@ export function createOrder(body) {
       run("UPDATE products SET sold = sold + :q WHERE id = :id", { q: qty, id: p.id });
     }
     run("INSERT INTO order_events (order_id, at, type, status, note) VALUES (:id, :at, 'status', 'pending', 'Order placed')", { id, at });
+    notify(userId, {
+      orderId: id,
+      title: `Order placed: ${id}`,
+      body: `We've received your order (Rs ${totals.total.toLocaleString("en-IN")}). Expected ${window.from === window.to ? niceDay(window.from) : `${niceDay(window.from)} – ${niceDay(window.to)}`}, ${slot.label}.`,
+    });
     return getOrder(id);
   });
 
@@ -183,6 +200,7 @@ export function getOrder(id) {
     id: o.id,
     accessKey: o.access_key,
     customerId: o.customer_id,
+    userId: o.user_id,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
     status: o.status,
@@ -208,7 +226,7 @@ export function summary(o) {
 
 export function setStatus(orderId, nextStatus, admin, note = "") {
   const order = transaction(() => {
-    const o = one("SELECT status, payment_method, payment_status FROM orders WHERE id = :id", { id: orderId });
+    const o = one("SELECT status, payment_method, payment_status, user_id FROM orders WHERE id = :id", { id: orderId });
     if (!o) throw new OrderError("Order not found.", 404);
     if (!STATUSES[nextStatus]) throw new OrderError("Unknown status.");
     if (!TRANSITIONS[o.status].includes(nextStatus)) {
@@ -236,6 +254,8 @@ export function setStatus(orderId, nextStatus, admin, note = "") {
     run(`INSERT INTO order_events (order_id, at, type, status, note, admin_name)
          VALUES (:id, :at, 'status', :s, :note, :admin)`, { id: orderId, at, s: nextStatus, note: note || null, admin: admin.name });
     audit(admin, "order.status", `${orderId}: ${o.status} → ${nextStatus}`);
+    const [title, body] = STATUS_MESSAGES[nextStatus] || [STATUSES[nextStatus], ""];
+    notify(o.user_id, { orderId, title: `${title}: ${orderId}`, body });
     return getOrder(orderId);
   });
   broadcast("order.updated", summary(order));

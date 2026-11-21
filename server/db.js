@@ -158,6 +158,44 @@ db.exec(`
   );
 `);
 
+// Shop customers who sign in with Google, their sessions and notifications
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    google_sub TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    picture TEXT,
+    created_at TEXT NOT NULL,
+    last_login_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_id TEXT REFERENCES orders(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    read_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
+`);
+
+// Orders placed while signed in belong to that account (added after launch,
+// so older databases get the column here)
+if (!db.prepare("PRAGMA table_info(orders)").all().some((c) => c.name === "user_id")) {
+  db.exec("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
+}
+db.exec("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)");
+
 export const now = () => new Date().toISOString();
 
 // Plain objects instead of null-prototype rows, so they serialise predictably

@@ -226,6 +226,20 @@ if (!Cart.lines().length) {
 
   panels.forEach((p) => p.querySelector("h2").setAttribute("tabindex", "-1"));
 
+  // Signed-in customers: the order goes into their history. Guests get a nudge.
+  Account.ready.then((user) => {
+    const note = document.createElement("p");
+    note.className = "account-note";
+    if (user) {
+      note.innerHTML = `${icon("user")} Signed in as <strong>${escapeHtml(user.name)}</strong>. This order will be saved to your order history and we'll notify you as it moves along.`;
+      if (!form.elements.name.value) form.elements.name.value = user.name;
+      if (!form.elements.email.value) form.elements.email.value = user.email;
+    } else if (SHOP.GOOGLE_CLIENT_ID) {
+      note.innerHTML = `${icon("user")} <a href="account.html?next=checkout.html">Sign in with Google</a> to keep your order history and get order notifications. Or just carry on as a guest.`;
+    } else return;
+    document.querySelector(".stepper").before(note);
+  });
+
   if (!SHOP.ACCEPTING_ORDERS) {
     const note = document.createElement("p");
     note.className = "free-progress";

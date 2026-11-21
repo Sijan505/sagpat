@@ -21,6 +21,7 @@ const KEYS = {
   orders: "sagpat_orders",
   reviews: "sagpat_reviews",
   customer: "sagpat_customer",
+  notifSeen: "sagpat_notif_seen",
 };
 
 // ---------- localStorage (fails safely in private mode) ----------
@@ -61,6 +62,10 @@ const ICONS = {
   left: '<path d="m15 18-6-6 6-6"/>',
   right: '<path d="m9 18 6-6-6-6"/>',
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
 };
 
 function icon(name) {
@@ -254,6 +259,9 @@ function renderLayout() {
         <button type="button" class="nav-toggle" aria-label="Menu" aria-expanded="false">${icon("menu")}</button>
         <nav class="nav" aria-label="Main">
           ${NAV.map((n) => `<a href="${n.href}" class="${n.page === page ? "active" : ""}">${n.label}</a>`).join("")}
+          <span class="account-slot">
+            <a href="account.html" class="icon-link ${page === "account" ? "active" : ""}">${icon("user")} Sign in</a>
+          </span>
           <a href="products.html?wishlist=1" class="icon-link" aria-label="Wishlist">
             ${icon("heart")}<span class="badge-count" data-count="wishlist">0</span></a>
           <a href="cart.html" class="icon-link cart-link ${page === "cart" ? "active" : ""}">
@@ -364,4 +372,173 @@ window.addEventListener("storage", (e) => {
   }
 });
 
+// ---------- Customer account + notifications ----------
+// The header shows "Sign in" until /api/me answers. Signed-in customers get a
+// notification bell; new notifications (order placed, status changes) also
+// pop up as a toast and, if allowed, a browser notification.
+const fmtWhen = (iso) => new Date(iso).toLocaleString("en-GB", {
+  timeZone: "Asia/Kathmandu", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+});
+const orderLink = (id, key) => `confirmation.html?id=${encodeURIComponent(id)}&key=${encodeURIComponent(key || "")}`;
+
+const Account = {
+  user: null,
+  googleEnabled: false,
+  ready: null, // Promise that resolves once we know who's signed in
+  notifications: { unread: 0, items: [] },
+
+  async load() {
+    try {
+      const res = await fetch("/api/me");
+      const data = await res.json();
+      this.user = data.user;
+      this.googleEnabled = data.googleEnabled;
+    } catch {
+      this.user = null;
+    }
+    this.renderHeader();
+    if (this.user) {
+      this.refreshNotifications();
+      setInterval(() => !document.hidden && this.refreshNotifications(), 45000);
+      document.addEventListener("visibilitychange", () => !document.hidden && this.refreshNotifications());
+    }
+    return this.user;
+  },
+
+  async signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    try { window.google?.accounts?.id?.disableAutoSelect(); } catch { /* not loaded */ }
+    location.href = "index.html";
+  },
+
+  renderHeader() {
+    const slot = document.querySelector(".account-slot");
+    if (!slot || !this.user) return;
+    const u = this.user;
+    const avatar = u.picture
+      ? `<img class="avatar" src="${escapeHtml(u.picture)}" alt="" referrerpolicy="no-referrer">`
+      : `<span class="avatar avatar-letter">${escapeHtml(u.name.charAt(0).toUpperCase())}</span>`;
+    slot.innerHTML = `
+      <div class="dropdown" data-dropdown="notif">
+        <button type="button" class="icon-btn" aria-label="Notifications" aria-expanded="false" aria-haspopup="true">
+          ${icon("bell")}<span class="badge-count notif-count" hidden>0</span></button>
+        <div class="dropdown-panel notif-panel" hidden>
+          <div class="dropdown-head"><strong>Notifications</strong>
+            ${"Notification" in window && Notification.permission === "default"
+              ? `<button type="button" class="link-btn" data-enable-push>Turn on alerts</button>` : ""}</div>
+          <ul class="notif-list"><li class="notif-empty">Loading…</li></ul>
+        </div>
+      </div>
+      <div class="dropdown" data-dropdown="user">
+        <button type="button" class="icon-btn user-btn" aria-label="Account menu" aria-expanded="false" aria-haspopup="true">
+          ${avatar}<span class="user-first">${escapeHtml(u.name.split(" ")[0])}</span></button>
+        <div class="dropdown-panel user-panel" hidden>
+          <div class="dropdown-head"><strong>${escapeHtml(u.name)}</strong><small>${escapeHtml(u.email)}</small></div>
+          <a href="account.html">${icon("receipt")} My orders</a>
+          <button type="button" data-signout>${icon("logout")} Sign out</button>
+        </div>
+      </div>`;
+
+    slot.addEventListener("click", (e) => {
+      if (e.target.closest("[data-signout]")) return this.signOut();
+      if (e.target.closest("[data-enable-push]")) return enableBrowserNotifications();
+      const btn = e.target.closest(".icon-btn");
+      if (!btn) return;
+      const dd = btn.closest(".dropdown");
+      const panel = dd.querySelector(".dropdown-panel");
+      const open = panel.hidden;
+      closeDropdowns();
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", open);
+      if (open && dd.dataset.dropdown === "notif") this.markRead();
+    });
+  },
+
+  async refreshNotifications() {
+    let data;
+    try {
+      const res = await fetch("/api/me/notifications");
+      if (!res.ok) return;
+      data = await res.json();
+    } catch {
+      return;
+    }
+    this.notifications = data;
+    this.renderNotifications();
+
+    // Announce notifications this device hasn't shown yet. On a device's
+    // first visit, only very recent ones (e.g. "Order placed") pop up.
+    const seen = store.get(KEYS.notifSeen, 0);
+    let fresh = data.items.filter((n) => !n.read && n.id > seen);
+    if (!seen) fresh = fresh.filter((n) => Date.now() - new Date(n.createdAt) < 5 * 60000);
+    if (data.items.length) store.set(KEYS.notifSeen, Math.max(seen, data.items[0].id));
+    for (const n of fresh.slice(0, 3).reverse()) {
+      toast(n.title);
+      showBrowserNotification(n.title, n.body, n.orderId ? orderLink(n.orderId, n.orderKey) : "account.html");
+    }
+    if (fresh.length) document.dispatchEvent(new CustomEvent("notifications:new", { detail: fresh }));
+  },
+
+  renderNotifications() {
+    const { unread, items } = this.notifications;
+    const badge = document.querySelector(".notif-count");
+    if (badge) {
+      badge.textContent = unread > 9 ? "9+" : unread;
+      badge.hidden = unread === 0;
+    }
+    const list = document.querySelector(".notif-list");
+    if (!list) return;
+    list.innerHTML = items.length ? items.map((n) => `
+      <li class="${n.read ? "" : "unread"}">
+        <a href="${n.orderId ? orderLink(n.orderId, n.orderKey) : "account.html"}">
+          <strong>${escapeHtml(n.title)}</strong>
+          ${n.body ? `<span>${escapeHtml(n.body)}</span>` : ""}
+          <small>${fmtWhen(n.createdAt)}</small>
+        </a>
+      </li>`).join("") : `<li class="notif-empty">No notifications yet. We'll tell you here when your orders move along.</li>`;
+  },
+
+  async markRead() {
+    if (!this.notifications.unread) return;
+    await fetch("/api/me/notifications/read", { method: "POST" }).catch(() => {});
+    this.notifications.unread = 0;
+    const badge = document.querySelector(".notif-count");
+    if (badge) badge.hidden = true;
+  },
+};
+
+function closeDropdowns() {
+  document.querySelectorAll(".dropdown-panel").forEach((p) => (p.hidden = true));
+  document.querySelectorAll(".dropdown .icon-btn").forEach((b) => b.setAttribute("aria-expanded", "false"));
+}
+document.addEventListener("click", (e) => { if (!e.target.closest(".dropdown")) closeDropdowns(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDropdowns(); });
+
+// Browser (system) notifications, only after the customer allows them
+async function enableBrowserNotifications() {
+  if (!("Notification" in window)) return toast("This browser doesn't support notifications", "error");
+  const result = await Notification.requestPermission();
+  document.querySelectorAll("[data-enable-push]").forEach((b) => b.remove());
+  if (result === "granted") {
+    toast("Alerts are on. We'll tell you when your order moves along.");
+    showBrowserNotification("Sagpat alerts are on", "You'll get a message here when your order status changes.");
+  } else {
+    toast("Alerts are off. You can still see updates under the bell.");
+  }
+}
+
+const NOTIF_ICON = "data:image/svg+xml," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><path d="M20 18c0-6 3-10 9-11-.5 6-3.5 10-9 11Z" fill="#E8752F"/><path d="M8 18h24l-3 15H11Z" fill="#2D5016"/></svg>');
+
+function showBrowserNotification(title, body, url) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, { body, icon: NOTIF_ICON });
+    if (url) n.onclick = () => { window.focus(); location.href = url; };
+  } catch {
+    /* some mobile browsers only allow notifications from a service worker */
+  }
+}
+
 renderLayout();
+Account.ready = Account.load();

@@ -67,6 +67,7 @@ function renderOrder(o) {
         Questions? Call <strong>${escapeHtml(SHOP.PHONE)}</strong> or email <strong>${escapeHtml(SHOP.EMAIL)}</strong>. We're here 7 AM – 8 PM, every day.
         Bookmark this page to check your order later.
       </p>
+      <div id="notify-box"></div>
     </div>
 
     <div class="panel no-print" id="tracking" style="padding: 28px; margin-top: 24px;">
@@ -127,6 +128,30 @@ function renderOrder(o) {
 
   document.title = `Order ${o.id} | Sagpat`;
   document.getElementById("print-btn").addEventListener("click", () => window.print());
+  fillNotifyBox(o);
+}
+
+// Offer order alerts, and for guests, signing in to keep this order
+async function fillNotifyBox(o) {
+  const user = await Account.ready;
+  const box = document.getElementById("notify-box");
+  if (!box || ["delivered", "cancelled"].includes(o.status)) return;
+  const parts = [];
+  if ("Notification" in window && Notification.permission === "default") {
+    parts.push(`<button type="button" class="btn btn-outline btn-sm" data-enable-push>${icon("bell")} Notify me when my order moves along</button>`);
+  }
+  if (user) {
+    parts.push(`<a href="account.html" class="btn btn-ghost btn-sm">${icon("receipt")} See all my orders</a>`);
+  } else if (SHOP.GOOGLE_CLIENT_ID) {
+    const next = encodeURIComponent(`confirmation.html?id=${encodeURIComponent(o.id)}&key=${encodeURIComponent(o.key)}`);
+    parts.push(`<a href="account.html?next=${next}" class="btn btn-ghost btn-sm">${icon("user")} Sign in to save this order to your history</a>`);
+  }
+  box.className = parts.length ? "notify-box" : "";
+  box.innerHTML = parts.join("");
+  box.querySelector("[data-enable-push]")?.addEventListener("click", (e) => {
+    e.currentTarget.remove();
+    enableBrowserNotifications();
+  });
 }
 
 function renderNotFound() {
@@ -157,6 +182,8 @@ load().then((o) => {
         lastStatus = fresh.status;
         renderOrder(fresh);
         toast(`Order update: ${fresh.statusLabel}`);
+        // Signed-in customers get this from the notification bell instead
+        if (!Account.user) showBrowserNotification(`Order ${fresh.id}: ${fresh.statusLabel}`, "Tap to see your order.", location.href);
       }
     }, 60000);
   }

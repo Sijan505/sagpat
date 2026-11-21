@@ -15,6 +15,28 @@ npm run dev
 `npm run dev` restarts the server when files in `server/` change. Pages, CSS and browser JS only need a browser refresh.
 Use another port with `PORT=3001 npm run dev` (PowerShell: `$env:PORT=3001; npm run dev`).
 
+## Customer accounts (Google sign-in)
+
+Customers can sign in with Google at **My orders** (`/account.html`). Signed-in customers get:
+
+- **Order history** with filters (in progress / delivered / cancelled), tracking links and "Buy again".
+- **Notifications**: a bell in the header shows "Order placed" right after checkout and every status change staff make
+  (confirmed, packed, out for delivery, delivered, cancelled). Customers can also turn on browser alerts.
+- Orders placed on the same device before signing in are added to their account automatically.
+
+Guests can still check out; the My orders page shows orders placed on their device.
+
+To turn on Google sign-in:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type *Web application*.
+2. Under **Authorized JavaScript origins** add your site, e.g. `http://localhost:3000` and `https://your-domain`.
+3. Start the server with the client ID:
+   `GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com npm run dev`
+   (PowerShell: `$env:GOOGLE_CLIENT_ID="1234-abc.apps.googleusercontent.com"; npm run dev`)
+
+The server checks each Google sign-in token's signature and audience itself (`server/customers.js`). Without
+`GOOGLE_CLIENT_ID` the shop works as before, and the sign-in button explains that it isn't set up.
+
 ## Staff logins
 
 On the first run the server creates one account per role, with random passwords, and writes them to
@@ -43,6 +65,7 @@ To start again from scratch, stop the server and delete the `data/` folder. It i
   - `routes/public.js`: the shop's catalog (`/js/data.js` is generated from the database), placing orders, order tracking
   - `routes/admin.js`: the staff API
   - `orders.js`: prices, stock, delivery slots and the order status workflow, all worked out on the server
+  - `customers.js`: customer Google sign-in, sessions and order notifications
   - `events.js`: live updates to open admin dashboards (Server-Sent Events)
   - `seed-data.js`: the starting catalog, loaded into the database on first run
 - `admin/`: the admin panel (plain HTML/CSS/JS)
