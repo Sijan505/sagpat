@@ -1,4 +1,5 @@
 // Public endpoints used by the storefront.
+import { randomBytes } from "node:crypto";
 import express, { Router } from "express";
 import { all, one, run, getSettings, productFromRow } from "../db.js";
 import { createOrder, getOrder, slotsFor, OrderError } from "../orders.js";
@@ -92,17 +93,59 @@ export function publicRoutes({ testimonials }) {
   // page, Google POSTs the signed ID token here as a form, then we send them
   // back to the shop signed in. (No popup window, so it works on phones and
   // with popup blockers.)
+  //
+  // The "Continue with Google" button is a plain link to /api/auth/google/start,
+  // which sends the customer to Google's own sign-in page. Nothing has to load
+  // from Google inside our page (no script, no iframe), so it works in in-app
+  // browsers (Messenger, Facebook…), with blockers and on slow mobile data.
+  // A random value in a short-lived cookie is sent to Google as `state` and
+  // `nonce`, and must come back in both the form and the signed token.
+  const OAUTH_COOKIE = "sagpat_oauth";
+  const callbackUrl = (req) => `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
+
+  router.get("/api/auth/google/start", (req, res) => {
+    if (!GOOGLE_CLIENT_ID) return res.redirect(303, `/account.html?signin_error=${encodeURIComponent("Google sign-in isn't set up on this shop yet.")}`);
+    const state = randomBytes(24).toString("base64url");
+    // Google posts the result back cross-site, so the cookie must be SameSite=None (which needs Secure)
+    res.cookie(OAUTH_COOKIE, state, { httpOnly: true, sameSite: "none", secure: true, maxAge: 15 * 60 * 1000, path: "/api/auth/google" });
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: callbackUrl(req),
+      response_type: "id_token",
+      response_mode: "form_post",
+      scope: "openid email profile",
+      state,
+      nonce: state,
+      prompt: "select_account",
+    });
+    res.redirect(302, `https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  });
+
   router.post("/api/auth/google/callback", rateLimit({ key: "google", max: 30, windowMs: 10 * 60 * 1000 }),
     express.urlencoded({ extended: false, limit: "20kb" }), async (req, res) => {
-      const back = (query) => res.redirect(303, `/account.html?${query}`);
-      // Google's CSRF check: the form field must match the cookie it set (when the browser sent it)
-      const formToken = req.body?.g_csrf_token;
-      const cookieToken = req.cookies.g_csrf_token;
-      if (!formToken || (cookieToken && cookieToken !== formToken)) {
-        return back(`signin_error=${encodeURIComponent("Sign-in failed. Please try again.")}`);
+      const back = (query) => res.redirect(303, `/account.html${query ? `?${query}` : ""}`);
+      const failed = () => back(`signin_error=${encodeURIComponent("Sign-in failed. Please try again.")}`);
+      const body = req.body || {};
+      let token;
+      if (body.id_token || body.error) {
+        // From our own link (/api/auth/google/start)
+        const expected = req.cookies[OAUTH_COOKIE];
+        res.clearCookie(OAUTH_COOKIE, { path: "/api/auth/google", sameSite: "none", secure: true });
+        if (body.error === "access_denied") return back(""); // customer cancelled on Google's page
+        if (!expected || body.state !== expected || !body.id_token) return failed();
+        token = body.id_token;
+        res.locals.nonce = expected;
+      } else {
+        // From Google's own sign-in button (older pages still open in a browser):
+        // its CSRF check is that the form field matches the cookie it set
+        const formToken = body.g_csrf_token;
+        const cookieToken = req.cookies.g_csrf_token;
+        if (!formToken || (cookieToken && cookieToken !== formToken)) return failed();
+        token = body.credential;
       }
       try {
-        const claims = await verifyGoogleToken(req.body.credential);
+        const claims = await verifyGoogleToken(token);
+        if (res.locals.nonce && claims.nonce !== res.locals.nonce) return failed();
         const user = await upsertGoogleUser(claims);
         await destroyUserSession(req, res);
         await createUserSession(res, user.id);

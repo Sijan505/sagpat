@@ -106,7 +106,10 @@ function renderSignInCard() {
       </div>
       <div class="signin-action">
         ${SHOP.GOOGLE_CLIENT_ID
-          ? `<div id="google-btn" class="google-btn"></div><p class="field-hint" id="signin-error" hidden></p>
+          ? `<a href="/api/auth/google/start" class="google-btn" id="google-btn">
+               <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+               <span>Continue with Google</span>
+             </a><p class="field-hint" id="signin-error" hidden></p>
              <p class="field-hint">We only use your name and email to keep your orders together.</p>`
           : `<p class="field-hint">Google sign-in isn't set up on this shop yet. Ask the shop owner to set <code>GOOGLE_CLIENT_ID</code> (see README).</p>`}
       </div>
@@ -133,30 +136,17 @@ async function renderSignedOut() {
 }
 
 // ---------- Google sign-in ----------
-// Redirect mode: the button takes the customer to Google's sign-in page, and
-// Google sends them back through /api/auth/google/callback. The page to return
-// to is remembered on this device in the meantime.
+// The button is a plain link to /api/auth/google/start, which opens Google's
+// sign-in page; Google sends the customer back through
+// /api/auth/google/callback. No Google script or iframe loads on this page, so
+// the button shows on every phone, network and in-app browser. The page to
+// return to is remembered on this device in the meantime.
 const NEXT_KEY = "sagpat_signin_next";
 
 function loadGoogleButton() {
-  const draw = () => {
+  document.getElementById("google-btn")?.addEventListener("click", () => {
     if (nextPage) store.set(NEXT_KEY, nextPage);
-    google.accounts.id.initialize({
-      client_id: SHOP.GOOGLE_CLIENT_ID,
-      ux_mode: "redirect",
-      login_uri: `${location.origin}/api/auth/google/callback`,
-    });
-    google.accounts.id.renderButton(document.getElementById("google-btn"), {
-      theme: "outline", size: "large", shape: "pill", text: "continue_with", logo_alignment: "left", width: 280,
-    });
-  };
-  if (window.google?.accounts?.id) return draw();
-  const s = document.createElement("script");
-  s.src = "https://accounts.google.com/gsi/client";
-  s.async = true;
-  s.onload = draw;
-  s.onerror = () => showSigninError("Couldn't load Google sign-in. Check your connection and refresh.");
-  document.head.appendChild(s);
+  });
 }
 
 function showSigninError(msg) {
