@@ -434,7 +434,7 @@ const Account = {
         <button type="button" class="icon-btn user-btn" aria-label="Account menu" aria-expanded="false" aria-haspopup="true">
           ${avatar}<span class="user-first">${escapeHtml(u.name.split(" ")[0])}</span></button>
         <div class="dropdown-panel user-panel" hidden>
-          <div class="dropdown-head"><strong>${escapeHtml(u.name)}</strong><small>${escapeHtml(u.email)}</small></div>
+          <div class="dropdown-head"><strong>${escapeHtml(u.name)}</strong><small>${escapeHtml(u.email || (u.username ? `@${u.username}` : ""))}</small></div>
           <a href="account.html">${icon("receipt")} My orders</a>
           <button type="button" data-signout>${icon("logout")} Sign out</button>
         </div>

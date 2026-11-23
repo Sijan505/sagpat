@@ -1,4 +1,4 @@
-// My orders: Google sign-in for guests, order history for signed-in customers.
+// My orders: sign-in (username/password or Google) for guests, order history for signed-in customers.
 // Guests still see orders placed on this device (the browser keeps their links).
 
 const accountRoot = document.getElementById("account-root");
@@ -80,7 +80,9 @@ function renderSignedIn(user) {
       ${avatar}
       <div class="profile-text">
         <strong>${escapeHtml(user.name)}</strong>
-        <small class="muted">${escapeHtml(user.email)} · signed in with Google</small>
+        <small class="muted">${user.username
+          ? `@${escapeHtml(user.username)}${user.email ? ` · ${escapeHtml(user.email)}` : ""}`
+          : `${escapeHtml(user.email)} · signed in with Google`}</small>
       </div>
       <div class="profile-actions">
         ${canAlert ? `<button type="button" class="btn btn-outline btn-sm" data-enable-push>${icon("bell")} Turn on order alerts</button>` : ""}
@@ -105,13 +107,53 @@ function renderSignInCard() {
         </ul>
       </div>
       <div class="signin-action">
+        <div class="auth-tabs" role="tablist" aria-label="Sign in or create an account">
+          <button type="button" role="tab" aria-selected="true" data-auth-tab="login">Sign in</button>
+          <button type="button" role="tab" aria-selected="false" data-auth-tab="signup">Create account</button>
+        </div>
+        <form class="auth-form" id="login-form" data-auth="login" novalidate>
+          <div>
+            <label for="login-username">Username <span class="ne">· प्रयोगकर्ता नाम</span></label>
+            <input id="login-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+          </div>
+          <div>
+            <label for="login-password">Password <span class="ne">· पासवर्ड</span></label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+        </form>
+        <form class="auth-form" id="signup-form" data-auth="signup" novalidate hidden>
+          <div>
+            <label for="signup-name">Full name <span class="ne">· पूरा नाम</span></label>
+            <input id="signup-name" name="name" autocomplete="name" maxlength="100" required>
+          </div>
+          <div>
+            <label for="signup-username">Username <span class="ne">· प्रयोगकर्ता नाम</span></label>
+            <input id="signup-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false"
+                   pattern="[A-Za-z0-9._]{3,30}" maxlength="30" required
+                   title="3–30 characters: letters, numbers, dots or underscores">
+            <p class="field-hint">Letters, numbers, dots or underscores.</p>
+          </div>
+          <div>
+            <label for="signup-email">Email <span class="muted">(optional)</span></label>
+            <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="120">
+          </div>
+          <div>
+            <label for="signup-password">Password <span class="ne">· पासवर्ड</span></label>
+            <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="200" required>
+            <p class="field-hint">At least 8 characters.</p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Create account</button>
+        </form>
+        <p class="field-hint" id="signin-error" role="alert" hidden></p>
         ${SHOP.GOOGLE_CLIENT_ID
-          ? `<a href="/api/auth/google/start" class="google-btn" id="google-btn">
+          ? `<div class="auth-or"><span>or</span></div>
+             <a href="/api/auth/google/start" class="google-btn" id="google-btn">
                <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                <span>Continue with Google</span>
-             </a><p class="field-hint" id="signin-error" hidden></p>
-             <p class="field-hint">We only use your name and email to keep your orders together.</p>`
-          : `<p class="field-hint">Google sign-in isn't set up on this shop yet. Ask the shop owner to set <code>GOOGLE_CLIENT_ID</code> (see README).</p>`}
+             </a>`
+          : ""}
+        <p class="field-hint">We only use your details to keep your orders together.</p>
       </div>
     </div>`;
 }
@@ -130,6 +172,7 @@ async function deviceOrders() {
 async function renderSignedOut() {
   accountRoot.innerHTML = `${renderSignInCard()}<h2 class="section-sub">Orders on this device</h2><div id="history"><p class="muted">Loading…</p></div>`;
   if (SHOP.GOOGLE_CLIENT_ID) loadGoogleButton();
+  setupPasswordForms();
   historyOrders = await deviceOrders();
   document.getElementById("history").innerHTML = historyOrders.length ? historyList()
     : `<p class="muted">No orders placed on this device yet. <a href="products.html" class="link-arrow">Start shopping</a></p>`;
@@ -147,6 +190,59 @@ function loadGoogleButton() {
   document.getElementById("google-btn")?.addEventListener("click", () => {
     if (nextPage) store.set(NEXT_KEY, nextPage);
   });
+}
+
+// ---------- Username + password ----------
+// Works on every device: no Google account or third-party pages needed.
+function setupPasswordForms() {
+  const tabs = [...accountRoot.querySelectorAll("[data-auth-tab]")];
+  const forms = [...accountRoot.querySelectorAll("form[data-auth]")];
+  const errorEl = document.getElementById("signin-error");
+  const showTab = (name) => {
+    tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.authTab === name)));
+    forms.forEach((f) => (f.hidden = f.dataset.auth !== name));
+    errorEl.hidden = true;
+  };
+  tabs.forEach((t) => t.addEventListener("click", () => showTab(t.dataset.authTab)));
+  if (accountParams.get("signup")) showTab("signup");
+
+  for (const form of forms) {
+    form.elements.username.addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\s/g, "");
+    });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      for (const field of form.querySelectorAll("input")) {
+        if (!field.checkValidity()) {
+          field.reportValidity();
+          field.focus();
+          return;
+        }
+      }
+      const btn = form.querySelector('button[type="submit"]');
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = form.dataset.auth === "signup" ? "Creating account…" : "Signing in…";
+      const body = Object.fromEntries(new FormData(form));
+      try {
+        const res = await fetch(`/api/auth/${form.dataset.auth}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't sign you in. Please try again.");
+        if (nextPage) store.set(NEXT_KEY, nextPage);
+        if (await finishSignIn()) return;
+        location.reload();
+      } catch (err) {
+        showSigninError(err.message === "Failed to fetch" ? "No connection. Check your internet and try again." : err.message);
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  }
 }
 
 function showSigninError(msg) {

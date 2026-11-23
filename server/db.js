@@ -210,6 +210,13 @@ export async function initDb() {
     await db.execute("ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL");
   }
   await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)");
+  // Customers can also sign up with a username and password (added after launch).
+  // Their google_sub holds a "local:" placeholder so the existing NOT NULL UNIQUE
+  // column still works without rebuilding the table.
+  const userCols = (await db.execute("PRAGMA table_info(users)")).rows;
+  if (!userCols.some((c) => c.name === "username")) await db.execute("ALTER TABLE users ADD COLUMN username TEXT");
+  if (!userCols.some((c) => c.name === "password_hash")) await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT");
+  await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE)");
 }
 
 export const now = () => new Date().toISOString();

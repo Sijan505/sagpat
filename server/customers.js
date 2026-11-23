@@ -1,7 +1,8 @@
-// Shop customer accounts: Google sign-in, cookie sessions and notifications.
+// Shop customer accounts: Google or username/password sign-in, cookie sessions and notifications.
 // Staff accounts live in auth.js and are completely separate.
 import { createHash, createPublicKey, randomBytes, verify } from "node:crypto";
 import { one, all, run, now } from "./db.js";
+import { hashPassword, verifyPassword } from "./auth.js";
 
 const USER_COOKIE = "sagpat_user";
 const SESSION_DAYS = 30;
@@ -76,6 +77,51 @@ export async function upsertGoogleUser(claims) {
   return await one("SELECT id, email, name, picture FROM users WHERE google_sub = :sub", { sub: claims.sub });
 }
 
+// ---------- Username + password accounts ----------
+// For customers whose phone or browser can't use Google sign-in.
+const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
+// Compared against when the username doesn't exist, so a wrong username takes
+// as long as a wrong password
+const DUMMY_HASH = hashPassword(randomBytes(16).toString("hex"));
+
+export async function signUpWithPassword({ name, username, password, email }) {
+  name = String(name ?? "").trim().slice(0, 100);
+  username = String(username ?? "").trim().toLowerCase();
+  email = String(email ?? "").trim().slice(0, 120);
+  if (!name) throw new AuthError("Please enter your name.", 400);
+  if (!USERNAME_RE.test(username)) {
+    throw new AuthError("Username must be 3–30 characters: letters, numbers, dots or underscores.", 400);
+  }
+  if (typeof password !== "string" || password.length < 8) throw new AuthError("Password must be at least 8 characters.", 400);
+  if (password.length > 200) throw new AuthError("Password is too long.", 400);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("That email address doesn't look right.", 400);
+  if (await one("SELECT id FROM users WHERE username = :username", { username })) {
+    throw new AuthError("That username is already taken. Please choose another.", 409);
+  }
+  const at = now();
+  try {
+    await run(`INSERT INTO users (google_sub, username, password_hash, email, name, created_at, last_login_at)
+         VALUES (:sub, :username, :hash, :email, :name, :at, :at)`, {
+      sub: `local:${randomBytes(12).toString("hex")}`, username, hash: hashPassword(password), email, name, at,
+    });
+  } catch (err) {
+    if (/UNIQUE/i.test(err.message)) throw new AuthError("That username is already taken. Please choose another.", 409);
+    throw err;
+  }
+  return await one("SELECT id, email, name, picture, username FROM users WHERE username = :username", { username });
+}
+
+export async function signInWithPassword({ username, password }) {
+  username = String(username ?? "").trim().toLowerCase();
+  password = typeof password === "string" ? password : "";
+  const row = username ? await one("SELECT id, email, name, picture, username, password_hash FROM users WHERE username = :username", { username }) : undefined;
+  const ok = verifyPassword(password, row?.password_hash || DUMMY_HASH);
+  if (!row || !row.password_hash || !ok) throw new AuthError("Wrong username or password.");
+  await run("UPDATE users SET last_login_at = :at WHERE id = :id", { at: now(), id: row.id });
+  const { password_hash, ...user } = row;
+  return user;
+}
+
 // ---------- Sessions ----------
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 
@@ -104,10 +150,10 @@ export async function loadUser(req, _res, next) {
   const token = req.cookies[USER_COOKIE];
   if (token) {
     const row = await one(`
-      SELECT u.id, u.email, u.name, u.picture, s.expires_at
+      SELECT u.id, u.email, u.name, u.picture, u.username, s.expires_at
       FROM user_sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = :t`, { t: sha256(token) });
-    if (row && row.expires_at > now()) req.user = { id: row.id, email: row.email, name: row.name, picture: row.picture };
+    if (row && row.expires_at > now()) req.user = { id: row.id, email: row.email, name: row.name, picture: row.picture, username: row.username };
   }
   next();
 }

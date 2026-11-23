@@ -15,9 +15,9 @@ npm run dev
 `npm run dev` restarts the server when files in `server/` change. Pages, CSS and browser JS only need a browser refresh.
 Use another port with `PORT=3001 npm run dev` (PowerShell: `$env:PORT=3001; npm run dev`).
 
-## Customer accounts (Google sign-in)
+## Customer accounts (username/password or Google)
 
-Customers **must sign in with Google to place an order** (the server rejects orders from anyone not signed in).
+Customers **must sign in to place an order** (the server rejects orders from anyone not signed in).
 They sign in at **My orders** (`/account.html`), or from the checkout page. Signed-in customers get:
 
 - **Order history** with filters (in progress / delivered / cancelled), tracking links and "Buy again".
@@ -25,7 +25,9 @@ They sign in at **My orders** (`/account.html`), or from the checkout page. Sign
   (confirmed, packed, out for delivery, delivered, cancelled). Customers can also turn on browser alerts.
 - Orders placed on the same device before signing in are added to their account automatically.
 
-To turn on Google sign-in:
+Customers can always **create an account with a username and password** on the My Orders page (`account.html`). This works on every device, with no setup. Passwords are hashed with scrypt, like staff passwords.
+
+Google sign-in is an optional extra. To turn it on:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type *Web application*.
 2. Under **Authorized JavaScript origins** add your site, e.g. `http://localhost:3000` and `https://your-domain`.
@@ -34,7 +36,7 @@ To turn on Google sign-in:
    (PowerShell: `$env:GOOGLE_CLIENT_ID="1234-abc.apps.googleusercontent.com"; npm run dev`)
 
 The server checks each Google sign-in token's signature and audience itself (`server/customers.js`).
-**Without `GOOGLE_CLIENT_ID` nobody can sign in, so no orders can be placed**; checkout shows the shop's phone number instead.
+Without `GOOGLE_CLIENT_ID` the Google button is hidden and customers use a username and password.
 
 ## Staff logins
 
@@ -80,7 +82,7 @@ The project is set up for Vercel (`vercel.json`), and pushes to `main` deploy au
   - `routes/public.js`: the shop's catalog (`/js/data.js` is generated from the database), placing orders, order tracking
   - `routes/admin.js`: the staff API
   - `orders.js`: prices, stock, delivery slots and the order status workflow, all worked out on the server
-  - `customers.js`: customer Google sign-in, sessions and order notifications
+  - `customers.js`: customer sign-in (username/password and Google), sessions and order notifications
   - `events.js`: live updates for the admin panel (a change feed it polls)
   - `seed-data.js`: the starting catalog, loaded into the database on first run
 - `admin/`: the admin panel (plain HTML/CSS/JS)

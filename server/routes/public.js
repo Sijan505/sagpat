@@ -7,7 +7,7 @@ import { rateLimit } from "../auth.js";
 import { STATUSES } from "../permissions.js";
 import {
   GOOGLE_CLIENT_ID, AuthError, verifyGoogleToken, upsertGoogleUser, createUserSession, destroyUserSession,
-  requireUser, listNotifications, markNotificationsRead,
+  signUpWithPassword, signInWithPassword, requireUser, listNotifications, markNotificationsRead,
 } from "../customers.js";
 
 export function publicRoutes({ testimonials }) {
@@ -51,7 +51,7 @@ export function publicRoutes({ testimonials }) {
   // Customers must be signed in with Google to order, so every order has an
   // account (order history, notifications)
   const requireSignedInCustomer = (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: "Please sign in with Google to place your order.", signIn: true });
+    if (!req.user) return res.status(401).json({ error: "Please sign in to place your order.", signIn: true });
     next();
   };
 
@@ -156,6 +156,21 @@ export function publicRoutes({ testimonials }) {
       }
     });
 
+  // Username + password, for customers whose device can't use Google sign-in
+  const passwordAuth = (fn) => async (req, res) => {
+    try {
+      const user = await fn(req.body || {});
+      await destroyUserSession(req, res);
+      await createUserSession(res, user.id);
+      res.json({ user: publicUser(user) });
+    } catch (err) {
+      if (err instanceof AuthError) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  };
+  router.post("/api/auth/signup", rateLimit({ key: "signup", max: 10, windowMs: 60 * 60 * 1000 }), passwordAuth(signUpWithPassword));
+  router.post("/api/auth/login", rateLimit({ key: "login", max: 15, windowMs: 10 * 60 * 1000 }), passwordAuth(signInWithPassword));
+
   router.post("/api/auth/logout", async (req, res) => {
     await destroyUserSession(req, res);
     res.json({ ok: true });
@@ -215,7 +230,7 @@ export function publicRoutes({ testimonials }) {
   return router;
 }
 
-const publicUser = (u) => ({ name: u.name, email: u.email, picture: u.picture });
+const publicUser = (u) => ({ name: u.name, email: u.email || "", picture: u.picture, username: u.username || null });
 
 function publicOrder(o) {
   return {

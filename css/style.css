@@ -742,3 +742,14 @@ label .ne { color: var(--muted); font-weight: 400; }
   .invoice { padding: 0; }
   main.section { padding: 0; }
 }
+
+/* ---------- Username + password sign-in ---------- */
+.auth-tabs { display: flex; width: 100%; padding: 4px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); }
+.auth-tabs button { flex: 1; padding: 8px 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer; }
+.auth-tabs button[aria-selected="true"] { background: var(--green); color: #fff; }
+.auth-form { display: grid; gap: 12px; width: 100%; text-align: left; }
+.auth-form[hidden] { display: none; }
+.auth-form label { display: block; margin-bottom: 4px; font-size: 0.88rem; font-weight: 600; }
+.auth-or { display: flex; align-items: center; gap: 10px; width: 100%; color: var(--muted); font-size: 0.85rem; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.gate-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
